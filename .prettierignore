@@ -1,0 +1,8 @@
+dist
+node_modules
+src-tauri/target
+.trellis
+.agents
+.codex
+docs
+*.md
