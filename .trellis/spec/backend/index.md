@@ -1,38 +1,19 @@
 # Backend Development Guidelines
 
-> Best practices for backend development in this project.
+The backend is the Rust crate under `src-tauri/`. It owns every filesystem,
+validation, state, Agent configuration, and Git operation. React receives only
+serializable command DTOs.
 
----
+## Pre-Development Checklist
 
-## Overview
+Read the guides that match the change:
 
-This directory contains guidelines for backend development. Fill in each file with your project's specific conventions.
+- [Directory Structure](./directory-structure.md) for modules and command seams.
+- [Error Handling](./error-handling.md) for user-visible failures.
+- [Quality](./quality-guidelines.md) for trust-boundary and test requirements.
+- [Logging](./logging-guidelines.md) before adding diagnostics.
+- [Desktop Command Contracts](./command-contracts.md) for Tauri DTOs,
+  previews, commits, cancellation, and cross-layer error behavior.
 
----
-
-## Guidelines Index
-
-| Guide | Description | Status |
-|-------|-------------|--------|
-| [Directory Structure](./directory-structure.md) | Module organization and file layout | To fill |
-| [Database Guidelines](./database-guidelines.md) | ORM patterns, queries, migrations | To fill |
-| [Error Handling](./error-handling.md) | Error types, handling strategies | To fill |
-| [Quality Guidelines](./quality-guidelines.md) | Code standards, forbidden patterns | To fill |
-| [Logging Guidelines](./logging-guidelines.md) | Structured logging, log levels | To fill |
-
----
-
-## How to Fill These Guidelines
-
-For each guideline file:
-
-1. Document your project's **actual conventions** (not ideals)
-2. Include **code examples** from your codebase
-3. List **forbidden patterns** and why
-4. Add **common mistakes** your team has made
-
-The goal is to help AI assistants and new team members understand how YOUR project works.
-
----
-
-**Language**: All documentation should be written in **English**.
+Then run `cargo fmt`, `cargo clippy -- -D warnings`, and `cargo test` with the
+manifest at `src-tauri/Cargo.toml`.

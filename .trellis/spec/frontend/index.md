@@ -1,39 +1,17 @@
 # Frontend Development Guidelines
 
-> Best practices for frontend development in this project.
+The frontend is the strict TypeScript React application under `src/`. It
+renders command DTOs and short-lived interaction state; Rust remains the
+persistent source of truth.
 
----
+## Pre-Development Checklist
 
-## Overview
+Read the guides that match the change:
 
-This directory contains guidelines for frontend development. Fill in each file with your project's specific conventions.
+- [Directory Structure](./directory-structure.md)
+- [Components](./component-guidelines.md)
+- [State Management](./state-management.md)
+- [Type Safety](./type-safety.md)
+- [Quality](./quality-guidelines.md)
 
----
-
-## Guidelines Index
-
-| Guide | Description | Status |
-|-------|-------------|--------|
-| [Directory Structure](./directory-structure.md) | Module organization and file layout | To fill |
-| [Component Guidelines](./component-guidelines.md) | Component patterns, props, composition | To fill |
-| [Hook Guidelines](./hook-guidelines.md) | Custom hooks, data fetching patterns | To fill |
-| [State Management](./state-management.md) | Local state, global state, server state | To fill |
-| [Quality Guidelines](./quality-guidelines.md) | Code standards, forbidden patterns | To fill |
-| [Type Safety](./type-safety.md) | Type patterns, validation | To fill |
-
----
-
-## How to Fill These Guidelines
-
-For each guideline file:
-
-1. Document your project's **actual conventions** (not ideals)
-2. Include **code examples** from your codebase
-3. List **forbidden patterns** and why
-4. Add **common mistakes** your team has made
-
-The goal is to help AI assistants and new team members understand how YOUR project works.
-
----
-
-**Language**: All documentation should be written in **English**.
+Run format check, ESLint, TypeScript, Vitest, and the production Vite build.

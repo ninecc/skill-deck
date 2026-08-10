@@ -1,59 +1,26 @@
-# Component Guidelines
+# React Component Guidelines
 
-> How components are built in this project.
-
----
-
-## Overview
-
-<!--
-Document your project's component conventions here.
-
-Questions to answer:
-- What component patterns do you use?
-- How are props defined?
-- How do you handle composition?
-- What accessibility standards apply?
--->
-
-(To be filled by the team)
-
----
-
-## Component Structure
-
-<!-- Standard structure of a component file -->
-
-(To be filled by the team)
-
----
-
-## Props Conventions
-
-<!-- How props should be defined and typed -->
-
-(To be filled by the team)
-
----
-
-## Styling Patterns
-
-<!-- How styles are applied (CSS modules, styled-components, Tailwind, etc.) -->
-
-(To be filled by the team)
-
----
+Components are functions with typed props. Prefer semantic HTML and native
+controls before custom widgets; `App.tsx` uses real buttons, links, labels, and
+a select so keyboard behavior exists without extra code.
 
 ## Accessibility
 
-<!-- A11y requirements and patterns -->
+- Every icon-only or brand link needs an accessible name.
+- Decorative marks use `aria-hidden`.
+- Visible sections connect headings with `aria-labelledby` where needed.
+- Preserve `:focus-visible`, reduced-motion behavior, readable contrast, and a
+  320px minimum layout in `styles.css`.
+- A disabled or unavailable domain action must expose the reason in text, not
+  only color.
 
-(To be filled by the team)
+Do not render untrusted Skill Markdown as HTML. Display structured metadata and
+paths as text unless a separately reviewed sanitizer is introduced.
 
----
+## Inventory identity and diagnostics
 
-## Common Mistakes
-
-<!-- Component-related mistakes your team has made -->
-
-(To be filled by the team)
+Inventory row headings identify the Skill and must not be replaced by a status
+such as `Needs attention`. For an invalid external entry, use the final path
+component as the fallback name, render the diagnostic state as an adjacent
+badge, and keep the localized reason and logical path as separate text. This
+keeps search results and row identity stable while preserving the full error.

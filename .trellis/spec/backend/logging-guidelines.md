@@ -1,51 +1,10 @@
-# Logging Guidelines
+# Backend Logging and Diagnostics
 
-> How logging is done in this project.
+The application currently has no logging dependency. Keep it that way until a
+diagnostic export flow exists; do not add `println!`, analytics, crash upload,
+or a logger only for development convenience.
 
----
-
-## Overview
-
-<!--
-Document your project's logging conventions here.
-
-Questions to answer:
-- What logging library do you use?
-- What are the log levels and when to use each?
-- What should be logged?
-- What should NOT be logged (PII, secrets)?
--->
-
-(To be filled by the team)
-
----
-
-## Log Levels
-
-<!-- When to use each level: debug, info, warn, error -->
-
-(To be filled by the team)
-
----
-
-## Structured Logging
-
-<!-- Log format, required fields -->
-
-(To be filled by the team)
-
----
-
-## What to Log
-
-<!-- Important events to log -->
-
-(To be filled by the team)
-
----
-
-## What NOT to Log
-
-<!-- Sensitive data, PII, secrets -->
-
-(To be filled by the team)
+When diagnostics are implemented, they must follow `design.md` for the active
+task: remain local, require explicit export, preview included fields, and omit
+credentials, Skill bodies, and unnecessary full home paths. Structured error
+DTOs are the user-facing diagnostic mechanism today.

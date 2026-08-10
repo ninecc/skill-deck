@@ -1,51 +1,81 @@
-# Quality Guidelines
+# Backend Quality Guidelines
 
-> Code quality standards for backend development.
+## Trust boundaries
 
----
+Every Skill Source is untrusted. Validate before content enters Managed
+Library storage. The reference implementation is `validate_skill_dir` in
+`src-tauri/src/skill.rs`:
 
-## Overview
+- inspect with `symlink_metadata` and never follow package links;
+- reject special files;
+- enforce count and byte limits while walking, before reading content;
+- parse frontmatter once and return typed metadata plus deterministic
+  structural disclosure;
+- keep fixed production limits in one policy and inject smaller policies only
+  inside tests.
 
-<!--
-Document your project's quality standards here.
+Do not simplify away validation, atomicity, ownership checks, or error paths.
+Do not execute Skill scripts or assign safety labels.
 
-Questions to answer:
-- What patterns are forbidden?
-- What linting rules do you enforce?
-- What are your testing requirements?
-- What code review standards apply?
--->
+## Tests and verification
 
-(To be filled by the team)
+Non-trivial branches need a focused unit or integration test. Boundary tests
+must cover exact-limit acceptance and one-over rejection without allocating
+production-sized fixtures; `reports_exact_resource_limit_and_observation` is
+the pattern.
 
----
+Required commands:
 
-## Forbidden Patterns
+```bash
+cargo fmt --check --manifest-path src-tauri/Cargo.toml
+cargo clippy --manifest-path src-tauri/Cargo.toml --all-targets --all-features -- -D warnings
+cargo test --manifest-path src-tauri/Cargo.toml --all-features
+```
 
-<!-- Patterns that should never be used and why -->
+## Scenario: Desktop bundle icons
 
-(To be filled by the team)
+### 1. Scope / Trigger
 
----
+Changing the application icon or Tauri bundle configuration affects native
+artifacts on Windows, macOS, and Linux even when the Rust build succeeds.
 
-## Required Patterns
+### 2. Signatures
 
-<!-- Patterns that must always be used -->
+`src-tauri/tauri.conf.json` must declare `bundle.icon` with the generated PNG,
+ICNS, and ICO resources under `src-tauri/icons/`.
 
-(To be filled by the team)
+### 3. Contracts
 
----
+- `icons/icon.svg` is the editable source.
+- `npm run tauri icon src-tauri/icons/icon.svg` regenerates platform assets.
+- macOS bundles must contain `Contents/Resources/icon.icns` and set
+  `CFBundleIconFile=icon.icns`; Windows consumes `icon.ico`; Linux consumes PNG.
 
-## Testing Requirements
+### 4. Validation & Error Matrix
 
-<!-- What level of testing is expected -->
+- Missing `bundle.icon` -> reject release: Tauri may build an iconless bundle.
+- Missing generated resource -> reject release before packaging.
+- Source and bundled ICNS hashes differ -> reject as a stale artifact.
+- The 32 px preview is illegible or off-center -> correct the SVG and regenerate.
 
-(To be filled by the team)
+### 5. Good / Base / Bad Cases
 
----
+- Good: all formats are declared, generated, legible at 32 px, and packaged.
+- Base: the SVG changes and every generated asset is refreshed in one command.
+- Bad: only `icon.svg` or `icon.png` changes while native bundle assets stay old.
 
-## Code Review Checklist
+### 6. Tests Required
 
-<!-- What reviewers should check -->
+Build a native artifact, assert its platform icon exists, and on macOS assert
+the source and bundled ICNS hashes match. Native CI remains responsible for
+the equivalent Windows and Linux packaging checks.
 
-(To be filled by the team)
+### 7. Wrong vs Correct
+
+```json
+// Wrong: generated files exist but the bundle does not reference them.
+{ "bundle": { "active": true } }
+
+// Correct: every desktop format is explicit.
+{ "bundle": { "icon": ["icons/32x32.png", "icons/icon.icns", "icons/icon.ico"] } }
+```

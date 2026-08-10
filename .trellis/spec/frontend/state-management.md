@@ -1,51 +1,12 @@
-# State Management
+# Frontend State Management
 
-> How state is managed in this project.
+Use React local state for short-lived UI choices such as the locale selector in
+`App.tsx`. Do not add a global state library or client-side persistence layer.
 
----
+Inventory and operation results come from typed Tauri commands. Refresh them
+from Rust after each committed operation rather than mutating a second durable
+copy in React. Derived filters and counts should be computed from the current
+inventory response.
 
-## Overview
-
-<!--
-Document your project's state management conventions here.
-
-Questions to answer:
-- What state management solution do you use?
-- How is local vs global state decided?
-- How do you handle server state?
-- What are the patterns for derived state?
--->
-
-(To be filled by the team)
-
----
-
-## State Categories
-
-<!-- Local state, global state, server state, URL state -->
-
-(To be filled by the team)
-
----
-
-## When to Use Global State
-
-<!-- Criteria for promoting state to global -->
-
-(To be filled by the team)
-
----
-
-## Server State
-
-<!-- How server data is cached and synchronized -->
-
-(To be filled by the team)
-
----
-
-## Common Mistakes
-
-<!-- State management mistakes your team has made -->
-
-(To be filled by the team)
+The locale preference may be persisted when settings are implemented, but the
+static catalogs in `src/i18n.ts` remain the only source for user-facing strings.

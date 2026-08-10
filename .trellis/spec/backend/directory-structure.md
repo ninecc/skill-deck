@@ -1,54 +1,19 @@
-# Directory Structure
+# Backend Directory Structure
 
-> How backend code is organized in this project.
+## Runtime boundary
 
----
+- `src-tauri/src/lib.rs` is the Tauri boundary. Commands deserialize input,
+  call a domain function, and serialize its result. Do not put traversal,
+  ownership, or transaction rules in a command handler.
+- `src-tauri/src/skill.rs` is the current deep module for Skill package
+  validation. It owns the metadata, resource observation, structured error,
+  and tests so the trust-boundary rules cannot diverge across callers.
+- `src-tauri/src/main.rs` only starts the library entry point.
 
-## Overview
+Add a module only when it owns a real domain seam such as Agent configuration,
+persisted state, or transactions. Do not add one-interface/one-implementation
+layers or a generic plugin framework.
 
-<!--
-Document your project's backend directory structure here.
-
-Questions to answer:
-- How are modules/packages organized?
-- Where does business logic live?
-- Where are API endpoints defined?
-- How are utilities and helpers organized?
--->
-
-(To be filled by the team)
-
----
-
-## Directory Layout
-
-```
-<!-- Replace with your actual structure -->
-src/
-├── ...
-└── ...
-```
-
----
-
-## Module Organization
-
-<!-- How should new features/modules be organized? -->
-
-(To be filled by the team)
-
----
-
-## Naming Conventions
-
-<!-- File and folder naming rules -->
-
-(To be filled by the team)
-
----
-
-## Examples
-
-<!-- Link to well-organized modules as examples -->
-
-(To be filled by the team)
+Rust files and modules use `snake_case`; serializable Rust DTOs use
+`UpperCamelCase` and `#[serde(rename_all = "camelCase")]` at the frontend
+boundary, as demonstrated by `ValidatedSkill` and `AppInfo`.
