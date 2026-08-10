@@ -1,0 +1,3 @@
+{"file":".trellis/tasks/08-10-ai-agent-skill-manager/research.md","reason":"Verify implementation against official path, format, platform and distribution constraints."}
+{"file":".trellis/spec/guides/cross-layer-thinking-guide.md","reason":"Review shared contracts, validation ownership and complete UI-to-filesystem data flow."}
+{"file":".trellis/spec/guides/code-reuse-thinking-guide.md","reason":"Review for duplicated config parsing, path handling, payload decoding and transaction logic."}
