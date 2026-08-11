@@ -113,3 +113,24 @@ Added Codex and Claude projection lifecycle smoke tests, native packaging gates,
 ### Status
 
 [OK] **Completed**
+
+
+## Session 6: macOS installer smoke
+
+**Date**: 2026-08-11
+**Task**: macOS installer smoke
+**Branch**: `main`
+
+### Summary
+
+Verified the matching CI universal DMG in the packaged app, proved Codex and Claude native recognition and removal, cleaned test-owned state, added a three-platform release checklist, and split the roadmap while leaving Windows and Linux open.
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `29be66b` | (see git log) |
+
+### Status
+
+[OK] **Completed**

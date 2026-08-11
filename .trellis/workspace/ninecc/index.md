@@ -8,7 +8,7 @@
 
 <!-- @@@auto:current-status -->
 - **Active File**: `journal-1.md`
-- **Total Sessions**: 5
+- **Total Sessions**: 6
 - **Last Active**: 2026-08-11
 <!-- @@@/auto:current-status -->
 
@@ -19,7 +19,7 @@
 <!-- @@@auto:active-documents -->
 | File | Lines | Status |
 |------|-------|--------|
-| `journal-1.md` | ~115 | Active |
+| `journal-1.md` | ~136 | Active |
 <!-- @@@/auto:active-documents -->
 
 ---
@@ -29,6 +29,7 @@
 <!-- @@@auto:session-history -->
 | # | Date | Title | Commits | Branch |
 |---|------|-------|---------|--------|
+| 6 | 2026-08-11 | macOS installer smoke | `29be66b` | `main` |
 | 5 | 2026-08-11 | Agent projection contract smoke | `e93f224` | `main` |
 | 4 | 2026-08-11 | Complete trustworthy inventory P0 | `e9b7f5d7a3391566960d4ee9440f8f4e4e34e7a5` | `main` |
 | 3 | 2026-08-11 | Skill manager landscape and roadmap | `df0089a` | `main` |
