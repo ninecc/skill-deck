@@ -16,6 +16,26 @@ _Avoid_: Plugin, extension, script
 A supported AI coding agent and its user-level Skill scope, currently Codex or Claude Code.
 _Avoid_: Platform, provider, runtime
 
+**Agent Root Artifact**:
+A known non-Skill file or container owned by an Agent Target or the operating system inside an official user-level Skill root; it is excluded from inventory and diagnostics.
+_Avoid_: External Installation, invalid Skill, ignored Skill
+
+**Unexpected Agent Root Entry**:
+An unrecognized file or special entry that cannot structurally be a Skill Package but is retained for diagnosis without being treated as an Installation.
+_Avoid_: External Installation, Agent Root Artifact, invalid Skill
+
+**Inventory**:
+The current normalized view of Managed Skill Packages, Installations, supported Agent Targets, and entries requiring attention; known Agent Root Artifacts are excluded.
+_Avoid_: Directory listing, registry, persisted state
+
+**Needs Attention**:
+The inventory summary category for Broken External Installations, Invalid Installation Candidates, and Unexpected Agent Root Entries; it is a presentation aggregate, not a replacement for their distinct domain types.
+_Avoid_: Invalid Installation, External Installation count, risk score
+
+**Management Scope**:
+The inventory filter that separates Managed Skill Packages from entries outside the Managed Library; the outside scope includes External Installations, Broken External Installations, and Invalid Installation Candidates.
+_Avoid_: Ownership, source, External-only filter
+
 **Installation**:
 A Skill Package present in one Agent Target's official user-level Skill directory.
 _Avoid_: Skill, copy, deployment
@@ -53,8 +73,12 @@ The import of a Legacy External Installation into the Managed Library without cr
 _Avoid_: Adoption, move, automatic migration
 
 **Broken External Installation**:
-An external link entry whose target is missing, cyclic, invalid, or otherwise unsafe to resolve as an installable Skill Package.
-_Avoid_: External Installation, Content Drift
+An external link entry whose link topology is missing, cyclic, escapes the allowed root, or is otherwise unsafe to resolve.
+_Avoid_: Invalid Installation Candidate, External Installation, Content Drift
+
+**Invalid Installation Candidate**:
+A directory or safely resolved external link in an Agent Target's Skill root that occupies an installation position but fails Structural Validation and therefore is not yet an Installation; it remains read-only and cannot be adopted until it validates successfully.
+_Avoid_: External Installation, Broken External Installation, Unexpected Agent Root Entry
 
 **Adoption**:
 The user's explicit grant of lifecycle control over an External Installation to Skill Deck, creating or attaching it to a Managed Skill Package.

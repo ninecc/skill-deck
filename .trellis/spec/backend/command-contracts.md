@@ -105,3 +105,87 @@ await loadInventory();
 
 The correct flow keeps path resolution, validation, ownership, and durable
 state inside Rust while React owns only explicit user confirmation.
+
+## Scenario: Inventory entry classification
+
+### 1. Scope / Trigger
+
+Apply this contract whenever Agent-root discovery or the `inventory` response
+shape changes. Rust owns filesystem classification; React must not reconstruct
+it from paths, filenames, or diagnostic messages.
+
+### 2. Signatures
+
+```text
+inventory() -> {
+  externalInstallations: ExternalInstallation[],
+  attentionEntries: AttentionEntry[],
+  managedPackages: ManagedSkillPackage[],
+  targets: AgentTarget[]
+}
+
+AttentionEntry.kind =
+  broken_external_installation |
+  invalid_installation_candidate |
+  unexpected_agent_root_entry
+```
+
+### 3. Contracts
+
+- `externalInstallations` contains only entries with a validated Skill payload.
+- `attentionEntries` carries `kind`, `agent`, `logicalPath`, optional
+  `resolvedTarget`, and structured `{code,message,path}` diagnostics.
+- A link is `broken_external_installation` only when its topology cannot be
+  safely resolved. A resolved link whose content fails validation is an
+  `invalid_installation_candidate`.
+- Non-directory, non-link root entries are `unexpected_agent_root_entry`.
+- Root `.DS_Store` entries and Codex legacy-root `.system` are artifacts and
+  appear in neither array. Other `.system` directories are still inspected.
+- Diagnostics exports may include kind, Agent, logical path, and structured
+  error, but never Skill bodies or resolved targets.
+
+### 4. Validation & Error Matrix
+
+| Root entry | Inventory result |
+| --- | --- |
+| Valid Skill directory or resolved link | `externalInstallations` |
+| Missing, cyclic, or unsafe external link | `broken_external_installation` |
+| Directory or resolved link failing Structural Validation | `invalid_installation_candidate` |
+| Ordinary or special root file | `unexpected_agent_root_entry` |
+| `.DS_Store`; Codex legacy `.system` | omitted artifact |
+
+### 5. Good / Base / Bad Cases
+
+- Good: Rust returns a discriminated entry and React switches on `kind`.
+- Base: a diagnostic path equal to the logical path is shown only once.
+- Bad: label every failed linked package as broken, or infer entry kind from a
+  localized error string in React.
+
+### 6. Tests Required
+
+- Rust tests cover valid directory, broken link, invalid content behind a
+  healthy link, ordinary file, `.DS_Store`, and owner-aware `.system` handling.
+- Diagnostics tests assert attention kind/path/error fields and absence of
+  content and resolved targets.
+- React tests assert actionable offending paths, Managed-only enabled-filter
+  behavior, Settings detail visibility, and locale changes without new
+  `inventory` or `state_status` calls.
+
+### 7. Wrong vs Correct
+
+Wrong:
+
+```ts
+const broken = entry.logicalPath.endsWith(".link") || error.message.includes("link");
+```
+
+Correct:
+
+```ts
+switch (entry.kind) {
+  case "broken_external_installation":
+  case "invalid_installation_candidate":
+  case "unexpected_agent_root_entry":
+    renderAttention(entry);
+}
+```
