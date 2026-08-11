@@ -1,5 +1,9 @@
 import { describe, expect, it } from "vitest";
-import { commandErrorCode, commandErrorMessage } from "./api";
+import {
+  commandErrorCode,
+  commandErrorMessage,
+  inventoryDiagnosticMessage,
+} from "./api";
 
 describe("commandErrorMessage", () => {
   it("normalizes Tauri payloads without unchecked casts", () => {
@@ -42,5 +46,19 @@ describe("commandErrorMessage", () => {
       "conflict",
     );
     expect(commandErrorCode("conflict")).toBeNull();
+  });
+
+  it("does not repeat a diagnostic path that matches the logical path", () => {
+    expect(
+      inventoryDiagnosticMessage(
+        {
+          code: "invalid_structure",
+          message: "Invalid entry",
+          path: "/tmp/skills/invalid",
+        },
+        "/tmp/skills/invalid",
+        { invalid_structure: "Invalid structure" },
+      ),
+    ).toBe("Invalid structure");
   });
 });

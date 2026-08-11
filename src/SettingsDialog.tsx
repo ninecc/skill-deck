@@ -3,6 +3,7 @@ import { useEffect, useRef, useState } from "react";
 import {
   commandErrorMessage,
   commitDiagnosticsExport,
+  inventoryDiagnosticMessage,
   planDiagnosticsExport,
   type DiagnosticsExportPlan,
   type Inventory,
@@ -109,13 +110,38 @@ export default function SettingsDialog({
           <strong>{stateStatus.mode.replaceAll("_", " ")}</strong>
           {stateStatus.diagnostic && <p>{stateStatus.diagnostic}</p>}
         </div>
+        {inventory.attentionEntries.length > 0 && (
+          <div className="state-diagnostic">
+            <strong>
+              {copy.needsAttention}: {inventory.attentionEntries.length}
+            </strong>
+            <ul className="attention-list">
+              {inventory.attentionEntries.map((entry) => (
+                <li key={`${entry.agent}:${entry.logicalPath}`}>
+                  <strong>
+                    {entry.agent} · {copy[`attention_${entry.kind}`]}
+                  </strong>
+                  <span>{entry.logicalPath}</span>
+                  <span>
+                    {inventoryDiagnosticMessage(
+                      entry.diagnostic,
+                      entry.logicalPath,
+                      copy.errors,
+                    )}
+                  </span>
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
         {diagnosticsPlan && (
           <div className="disclosure-card diagnostics-preview">
             <p className="section-kicker">{copy.diagnosticsPreview}</p>
             <p>
               {copy.managed}: {diagnosticsPlan.report.managedPackageCount} ·{" "}
               {copy.external}:{" "}
-              {diagnosticsPlan.report.externalInstallationCount}
+              {diagnosticsPlan.report.externalInstallationCount} ·{" "}
+              {copy.needsAttention}: {diagnosticsPlan.report.attentionCount}
             </p>
             <p>
               {copy.omitted}: {diagnosticsPlan.report.omitted.join(", ")}

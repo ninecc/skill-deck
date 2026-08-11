@@ -228,6 +228,13 @@ h2 {
   margin: 0;
 }
 
+.filter-scope-note {
+  grid-column: 1 / -1;
+  margin: 0;
+  color: #68675f;
+  font-size: 0.78rem;
+}
+
 .filter-field {
   display: grid;
   gap: 0.4rem;
@@ -672,6 +679,32 @@ h2 {
   margin: 10px 0 0;
   color: #6f321f;
   line-height: 1.5;
+}
+
+.attention-list {
+  display: grid;
+  gap: 10px;
+  margin: 14px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.attention-list li,
+.attention-list span {
+  display: block;
+}
+
+.attention-list li {
+  padding-top: 10px;
+  border-top: 1px solid rgb(36 35 31 / 10%);
+}
+
+.attention-list span {
+  margin-top: 4px;
+  overflow-wrap: anywhere;
+  color: #68675f;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 0.76rem;
 }
 
 .empty-glyph {

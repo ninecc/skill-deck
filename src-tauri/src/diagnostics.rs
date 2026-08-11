@@ -10,7 +10,7 @@ use atomicwrites::{AtomicFile, DisallowOverwrite};
 use serde::Serialize;
 
 use crate::{
-    inventory::{self, Agent, Inventory},
+    inventory::{self, Agent, AttentionKind, Inventory, InventoryDiagnostic},
     library::next_id,
     skill::{SkillError, SkillErrorCode},
     state::{StateMode, StateStore},
@@ -37,10 +37,21 @@ pub struct DiagnosticsReport {
     pub targets: Vec<DiagnosticTargetSummary>,
     pub managed_package_count: usize,
     pub external_installation_count: usize,
+    pub attention_count: usize,
+    pub attention_entries: Vec<DiagnosticAttentionEntry>,
     pub orphaned_package_paths: Vec<PathBuf>,
     pub destination: PathBuf,
     pub omitted: Vec<String>,
     pub recovery_scope: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct DiagnosticAttentionEntry {
+    pub kind: AttentionKind,
+    pub agent: Agent,
+    pub logical_path: PathBuf,
+    pub diagnostic: InventoryDiagnostic,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
@@ -178,6 +189,17 @@ fn build_report(
         targets,
         managed_package_count: inventory.managed_packages.len(),
         external_installation_count: inventory.external_installations.len(),
+        attention_count: inventory.attention_entries.len(),
+        attention_entries: inventory
+            .attention_entries
+            .into_iter()
+            .map(|entry| DiagnosticAttentionEntry {
+                kind: entry.kind,
+                agent: entry.agent,
+                logical_path: entry.logical_path,
+                diagnostic: entry.diagnostic,
+            })
+            .collect(),
         orphaned_package_paths: orphaned_package_paths(app_data, loaded.state.as_ref())?,
         destination: destination.to_path_buf(),
         omitted: vec![
@@ -308,7 +330,10 @@ mod tests {
 
     use super::*;
     use crate::{
-        inventory::{AgentTarget, ExternalInstallation, InstallationKind},
+        inventory::{
+            AgentTarget, AttentionEntry, AttentionKind, ExternalInstallation, InstallationKind,
+            InventoryDiagnostic,
+        },
         state::AppState,
     };
 
@@ -387,6 +412,17 @@ mod tests {
                 legacy: false,
             }],
             external_installations: Vec::<ExternalInstallation>::new(),
+            attention_entries: vec![AttentionEntry {
+                agent: Agent::Codex,
+                logical_path: temp.path().join("home/.agents/skills/broken"),
+                resolved_target: Some(temp.path().join(secret)),
+                kind: AttentionKind::InvalidInstallationCandidate,
+                diagnostic: InventoryDiagnostic {
+                    code: SkillErrorCode::InvalidStructure,
+                    message: "Skill package is invalid".to_owned(),
+                    path: Some(temp.path().join("home/.agents/skills/broken/SKILL.md")),
+                },
+            }],
             managed_packages: Vec::new(),
         };
         let report = build_report(temp.path(), &destination, inventory).unwrap();
@@ -397,6 +433,10 @@ mod tests {
         assert!(exported.contains("skill_content"));
         assert!(exported.contains("environment_variables"));
         assert!(exported.contains("credentials"));
+        assert!(exported.contains("invalid_installation_candidate"));
+        assert!(exported.contains("Skill package is invalid"));
+        assert!(!exported.contains("resolvedTarget"));
+        assert_eq!(report.attention_count, 1);
     }
 
     #[test]
@@ -427,6 +467,7 @@ mod tests {
                 skill: None,
                 diagnostic: None,
             }],
+            attention_entries: Vec::new(),
             managed_packages: Vec::new(),
         };
 

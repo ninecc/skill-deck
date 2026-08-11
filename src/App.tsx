@@ -4,10 +4,12 @@ import {
   commandErrorCode,
   commandErrorMessage,
   commitConfiguration,
+  inventoryDiagnosticMessage,
   loadInventory,
   loadStateStatus,
   planConfiguration,
   resolveConfiguration,
+  type AttentionEntry,
   type ExternalInstallation,
   type Inventory,
   type ManagedSkillPackage,
@@ -19,15 +21,26 @@ import ImportDialog from "./ImportDialog";
 import InstallDialog from "./InstallDialog";
 import LifecycleDialog, { type LifecycleAction } from "./LifecycleDialog";
 import RevisionDialog, { type RevisionAction } from "./RevisionDialog";
-import { catalogs, preferredLocale, type Locale } from "./i18n";
+import { catalogs, preferredLocale, type Locale, type Messages } from "./i18n";
 import SettingsDialog from "./SettingsDialog";
 
-function externalSkillName(installation: ExternalInstallation) {
+function inventoryEntryName(logicalPath: string, skillName?: string) {
   return (
-    installation.skill?.metadata.name ??
-    installation.logicalPath.split(/[\\/]/).filter(Boolean).at(-1) ??
-    installation.logicalPath
+    skillName ??
+    logicalPath.split(/[\\/]/).filter(Boolean).at(-1) ??
+    logicalPath
   );
+}
+
+function attentionLabel(entry: AttentionEntry, copy: Messages) {
+  switch (entry.kind) {
+    case "broken_external_installation":
+      return copy.brokenExternalInstallation;
+    case "invalid_installation_candidate":
+      return copy.invalidInstallationCandidate;
+    case "unexpected_agent_root_entry":
+      return copy.unexpectedAgentRootEntry;
+  }
 }
 
 export default function App() {
@@ -40,9 +53,9 @@ export default function App() {
   const copy = catalogs[locale];
   const [inventory, setInventory] = useState<Inventory | null>(null);
   const [stateStatus, setStateStatus] = useState<StateStatus | null>(null);
-  const [inventoryError, setInventoryError] = useState<string | true | null>(
-    null,
-  );
+  const [inventoryError, setInventoryError] = useState<{
+    value: unknown;
+  } | null>(null);
   const [importOpen, setImportOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
@@ -85,13 +98,17 @@ export default function App() {
         setInventoryError(null);
       })
       .catch((error: unknown) => {
-        setInventoryError(commandErrorMessage(error, copy.errors) ?? true);
+        setInventoryError({ value: error });
       });
-  }, [copy.errors]);
+  }, []);
 
   useEffect(refresh, [refresh]);
 
   const installations = inventory?.externalInstallations ?? [];
+  const attentionEntries = inventory?.attentionEntries ?? [];
+  const listedAttentionEntries = attentionEntries.filter(
+    (entry) => entry.kind !== "unexpected_agent_root_entry",
+  );
   const managedPackages = inventory?.managedPackages ?? [];
   const readOnly = stateStatus?.mode === "read_only_recovery";
   const normalizedQuery = query.trim().toLowerCase();
@@ -115,13 +132,21 @@ export default function App() {
       enabledFilter === "all" &&
       (agentFilter === "all" || installation.agent === agentFilter) &&
       (!normalizedQuery ||
-        installation.skill?.metadata.name
+        installation.skill.metadata.name
           .toLowerCase()
           .includes(normalizedQuery) ||
-        installation.skill?.metadata.description
+        installation.skill.metadata.description
           .toLowerCase()
           .includes(normalizedQuery) ||
         installation.logicalPath.toLowerCase().includes(normalizedQuery)),
+  );
+  const visibleAttention = listedAttentionEntries.filter(
+    (entry) =>
+      ownershipFilter !== "managed" &&
+      enabledFilter === "all" &&
+      (agentFilter === "all" || entry.agent === agentFilter) &&
+      (!normalizedQuery ||
+        entry.logicalPath.toLowerCase().includes(normalizedQuery)),
   );
 
   function toggleConfiguration(
@@ -219,7 +244,8 @@ export default function App() {
             <h2 id="library-title">{copy.skills}</h2>
             <p className="inventory-summary">
               {managedPackages.length} {copy.managedLibrary} ·{" "}
-              {installations.length} {copy.discovered}
+              {installations.length} {copy.discovered} ·{" "}
+              {attentionEntries.length} {copy.needsAttention}
             </p>
           </div>
           <div className="library-actions">
@@ -270,7 +296,9 @@ export default function App() {
           </div>
         )}
 
-        {(managedPackages.length > 0 || installations.length > 0) && (
+        {(managedPackages.length > 0 ||
+          installations.length > 0 ||
+          listedAttentionEntries.length > 0) && (
           <div className="inventory-filters" aria-label={copy.filters}>
             <label className="field search-field">
               <span>{copy.search}</span>
@@ -312,7 +340,7 @@ export default function App() {
               </select>
             </label>
             <label className="filter-field">
-              <span>{copy.ownershipFilter}</span>
+              <span>{copy.managementScope}</span>
               <select
                 value={ownershipFilter}
                 onChange={(event) =>
@@ -323,9 +351,12 @@ export default function App() {
               >
                 <option value="all">{copy.all}</option>
                 <option value="managed">{copy.managed}</option>
-                <option value="external">{copy.external}</option>
+                <option value="external">{copy.outsideLibrary}</option>
               </select>
             </label>
+            {enabledFilter !== "all" && (
+              <p className="filter-scope-note">{copy.enabledManagedOnly}</p>
+            )}
           </div>
         )}
 
@@ -336,15 +367,16 @@ export default function App() {
         ) : inventoryError ? (
           <div className="error-state" role="alert">
             <p>
-              {typeof inventoryError === "string"
-                ? inventoryError
-                : copy.unknownError}
+              {commandErrorMessage(inventoryError.value, copy.errors) ??
+                copy.unknownError}
             </p>
             <button className="secondary" type="button" onClick={refresh}>
               {copy.retry}
             </button>
           </div>
-        ) : visibleManaged.length > 0 || visibleExternal.length > 0 ? (
+        ) : visibleManaged.length > 0 ||
+          visibleExternal.length > 0 ||
+          visibleAttention.length > 0 ? (
           <ul className="skill-list">
             {visibleManaged.map((skill) => (
               <li className="skill-row" key={skill.id}>
@@ -503,19 +535,15 @@ export default function App() {
               >
                 <div>
                   <div className="skill-title-line">
-                    <h3>{externalSkillName(installation)}</h3>
-                    {installation.diagnostic && (
-                      <span className="status-badge">{copy.invalid}</span>
-                    )}
+                    <h3>
+                      {inventoryEntryName(
+                        installation.logicalPath,
+                        installation.skill.metadata.name,
+                      )}
+                    </h3>
                   </div>
                   <p className="skill-description">
-                    {installation.skill?.metadata.description ??
-                      commandErrorMessage(
-                        installation.diagnostic
-                          ? { ...installation.diagnostic, path: null }
-                          : null,
-                        copy.errors,
-                      )}
+                    {installation.skill.metadata.description}
                   </p>
                   <p className="installation-path">
                     {installation.logicalPath}
@@ -524,27 +552,48 @@ export default function App() {
                 <div className="skill-meta">
                   <span>{installation.agent}</span>
                   <span>{copy.external}</span>
-                  {installation.skill &&
-                    (installation.kind === "directory" ||
-                      installation.kind === "link" ||
-                      installation.kind === "legacy_directory" ||
-                      installation.kind === "legacy_link") && (
-                      <button
-                        className="text-button"
-                        type="button"
-                        disabled={readOnly}
-                        onClick={() => setAdoptionEntry(installation)}
-                      >
-                        {installation.kind.startsWith("legacy_")
-                          ? copy.migrateAction
-                          : copy.adoptAction}
-                      </button>
+                  <button
+                    className="text-button"
+                    type="button"
+                    disabled={readOnly}
+                    onClick={() => setAdoptionEntry(installation)}
+                  >
+                    {installation.kind.startsWith("legacy_")
+                      ? copy.migrateAction
+                      : copy.adoptAction}
+                  </button>
+                </div>
+              </li>
+            ))}
+            {visibleAttention.map((entry) => (
+              <li
+                className="skill-row"
+                key={`${entry.agent}:${entry.logicalPath}`}
+              >
+                <div>
+                  <div className="skill-title-line">
+                    <h3>{inventoryEntryName(entry.logicalPath)}</h3>
+                    <span className="status-badge">{copy.invalid}</span>
+                  </div>
+                  <p className="skill-description">
+                    {inventoryDiagnosticMessage(
+                      entry.diagnostic,
+                      entry.logicalPath,
+                      copy.errors,
                     )}
+                  </p>
+                  <p className="installation-path">{entry.logicalPath}</p>
+                </div>
+                <div className="skill-meta">
+                  <span>{entry.agent}</span>
+                  <span>{attentionLabel(entry, copy)}</span>
                 </div>
               </li>
             ))}
           </ul>
-        ) : managedPackages.length > 0 || installations.length > 0 ? (
+        ) : managedPackages.length > 0 ||
+          installations.length > 0 ||
+          listedAttentionEntries.length > 0 ? (
           <div className="empty-state compact-empty">
             <h3>{copy.noResults}</h3>
           </div>
@@ -623,10 +672,9 @@ export default function App() {
           entry={adoptionEntry}
           candidates={installations.filter(
             (candidate) =>
-              candidate.skill?.metadata.name ===
-                adoptionEntry.skill?.metadata.name &&
-              candidate.skill?.fingerprint ===
-                adoptionEntry.skill?.fingerprint &&
+              candidate.skill.metadata.name ===
+                adoptionEntry.skill.metadata.name &&
+              candidate.skill.fingerprint === adoptionEntry.skill.fingerprint &&
               (candidate.kind === "directory" || candidate.kind === "link"),
           )}
           onClose={() => closeStagedDialog(() => setAdoptionEntry(null))}

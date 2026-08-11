@@ -32,6 +32,14 @@ pub enum InstallationKind {
     Invalid,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub enum AttentionKind {
+    BrokenExternalInstallation,
+    InvalidInstallationCandidate,
+    UnexpectedAgentRootEntry,
+}
+
 #[derive(Debug, Clone, PartialEq, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct AgentTarget {
@@ -50,6 +58,16 @@ pub struct ExternalInstallation {
     pub kind: InstallationKind,
     pub skill: Option<ValidatedSkill>,
     pub diagnostic: Option<InventoryDiagnostic>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AttentionEntry {
+    pub agent: Agent,
+    pub logical_path: PathBuf,
+    pub resolved_target: Option<PathBuf>,
+    pub kind: AttentionKind,
+    pub diagnostic: InventoryDiagnostic,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
@@ -75,6 +93,7 @@ impl From<SkillError> for InventoryDiagnostic {
 pub struct Inventory {
     pub targets: Vec<AgentTarget>,
     pub external_installations: Vec<ExternalInstallation>,
+    pub attention_entries: Vec<AttentionEntry>,
     pub managed_packages: Vec<ManagedSkillPackage>,
 }
 
@@ -96,6 +115,14 @@ pub fn inventory(app_data: &std::path::Path) -> Result<Inventory, SkillError> {
                 package.installations.iter().any(|installation| {
                     installation.logical_path == external.logical_path
                         && installation.agent == external.agent
+                })
+            })
+        });
+        inventory.attention_entries.retain(|entry| {
+            !inventory.managed_packages.iter().any(|package| {
+                package.installations.iter().any(|installation| {
+                    installation.logical_path == entry.logical_path
+                        && installation.agent == entry.agent
                 })
             })
         });
@@ -140,6 +167,7 @@ fn inventory_for_roots<const N: usize>(
 ) -> Result<Inventory, SkillError> {
     let mut targets = Vec::with_capacity(N);
     let mut external_installations = Vec::new();
+    let mut attention_entries = Vec::new();
 
     for (agent, root, legacy) in roots {
         let exists = root.is_dir();
@@ -156,7 +184,32 @@ fn inventory_for_roots<const N: usize>(
         let entries = fs::read_dir(&root).map_err(|error| SkillError::io(&root, error))?;
         for entry in entries {
             let entry = entry.map_err(|error| SkillError::io(&root, error))?;
-            external_installations.push(inspect_entry(agent, entry.path(), legacy));
+            let logical_path = entry.path();
+            if is_root_artifact(agent, legacy, &logical_path) {
+                continue;
+            }
+            let metadata = fs::symlink_metadata(&logical_path)
+                .map_err(|error| SkillError::io(&logical_path, error))?;
+            if !metadata.is_dir() && !metadata.file_type().is_symlink() {
+                attention_entries.push(AttentionEntry {
+                    agent,
+                    logical_path: logical_path.clone(),
+                    resolved_target: None,
+                    kind: AttentionKind::UnexpectedAgentRootEntry,
+                    diagnostic: InventoryDiagnostic::from(SkillError::new(
+                        SkillErrorCode::UnsupportedFileType,
+                        "Agent root entry must be a directory or link",
+                        Some(logical_path),
+                    )),
+                });
+                continue;
+            }
+            let installation = inspect_entry(agent, logical_path, legacy);
+            if installation.skill.is_some() {
+                external_installations.push(installation);
+            } else {
+                attention_entries.push(attention_from_installation(installation));
+            }
         }
     }
 
@@ -165,11 +218,39 @@ fn inventory_for_roots<const N: usize>(
             .cmp(&right.logical_path)
             .then_with(|| agent_order(left.agent).cmp(&agent_order(right.agent)))
     });
+    attention_entries.sort_by(|left, right| {
+        left.logical_path
+            .cmp(&right.logical_path)
+            .then_with(|| agent_order(left.agent).cmp(&agent_order(right.agent)))
+    });
     Ok(Inventory {
         targets,
         external_installations,
+        attention_entries,
         managed_packages: Vec::new(),
     })
+}
+
+fn is_root_artifact(agent: Agent, legacy: bool, path: &std::path::Path) -> bool {
+    path.file_name().is_some_and(|name| {
+        name == ".DS_Store" || (agent == Agent::Codex && legacy && name == ".system")
+    })
+}
+
+fn attention_from_installation(installation: ExternalInstallation) -> AttentionEntry {
+    AttentionEntry {
+        agent: installation.agent,
+        logical_path: installation.logical_path,
+        resolved_target: installation.resolved_target,
+        kind: if installation.kind == InstallationKind::BrokenLink {
+            AttentionKind::BrokenExternalInstallation
+        } else {
+            AttentionKind::InvalidInstallationCandidate
+        },
+        diagnostic: installation
+            .diagnostic
+            .expect("an installation without a validated Skill has a diagnostic"),
+    }
 }
 
 pub(crate) fn inspect_entry(
@@ -276,11 +357,7 @@ fn validated_installation(
             agent,
             logical_path,
             resolved_target,
-            if matches!(kind, InstallationKind::Link | InstallationKind::LegacyLink) {
-                InstallationKind::BrokenLink
-            } else {
-                InstallationKind::Invalid
-            },
+            InstallationKind::Invalid,
             error,
         ),
     }
@@ -336,6 +413,7 @@ mod tests {
 
         assert!(!inventory.targets[0].exists);
         assert!(inventory.external_installations.is_empty());
+        assert!(inventory.attention_entries.is_empty());
     }
 
     #[test]
@@ -371,16 +449,86 @@ mod tests {
 
         let inventory = inventory_for_roots([(Agent::Codex, root, false)]).unwrap();
 
-        assert_eq!(inventory.external_installations.len(), 2);
+        assert_eq!(inventory.external_installations.len(), 1);
         assert!(inventory
             .external_installations
             .iter()
             .any(|installation| installation.kind == InstallationKind::Link));
         let broken = inventory
-            .external_installations
+            .attention_entries
             .iter()
-            .find(|installation| installation.kind == InstallationKind::BrokenLink)
+            .find(|entry| entry.kind == AttentionKind::BrokenExternalInstallation)
             .unwrap();
         assert_eq!(broken.resolved_target, Some(temp.path().join("absent")));
+    }
+
+    #[test]
+    fn root_artifacts_are_ignored_without_hiding_other_entries() {
+        let temp = TempDir::new().unwrap();
+        let current = temp.path().join("current");
+        let legacy = temp.path().join("legacy");
+        fs::create_dir_all(current.join(".system")).unwrap();
+        fs::create_dir_all(legacy.join(".system")).unwrap();
+        fs::write(current.join(".DS_Store"), "noise").unwrap();
+        fs::write(legacy.join(".DS_Store"), "noise").unwrap();
+
+        let inventory = inventory_for_roots([
+            (Agent::Codex, current.clone(), false),
+            (Agent::Codex, legacy, true),
+        ])
+        .unwrap();
+
+        assert!(inventory.external_installations.is_empty());
+        assert_eq!(inventory.attention_entries.len(), 1);
+        assert_eq!(
+            inventory.attention_entries[0].logical_path,
+            current.join(".system")
+        );
+        assert_eq!(
+            inventory.attention_entries[0].kind,
+            AttentionKind::InvalidInstallationCandidate
+        );
+    }
+
+    #[test]
+    fn ordinary_files_are_unexpected_root_entries() {
+        let temp = TempDir::new().unwrap();
+        let root = temp.path().join("skills");
+        fs::create_dir_all(&root).unwrap();
+        fs::write(root.join("notes.txt"), "not a skill").unwrap();
+
+        let inventory = inventory_for_roots([(Agent::Claude, root.clone(), false)]).unwrap();
+
+        assert!(inventory.external_installations.is_empty());
+        assert_eq!(inventory.attention_entries.len(), 1);
+        assert_eq!(
+            inventory.attention_entries[0].kind,
+            AttentionKind::UnexpectedAgentRootEntry
+        );
+        assert_eq!(
+            inventory.attention_entries[0].diagnostic.path,
+            Some(root.join("notes.txt"))
+        );
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn invalid_content_behind_a_healthy_link_is_not_broken_topology() {
+        use std::os::unix::fs::symlink;
+
+        let temp = TempDir::new().unwrap();
+        let root = temp.path().join("skills");
+        let target = temp.path().join("invalid-skill");
+        fs::create_dir_all(&root).unwrap();
+        fs::create_dir_all(&target).unwrap();
+        symlink(&target, root.join("invalid-skill")).unwrap();
+
+        let inventory = inventory_for_roots([(Agent::Codex, root, false)]).unwrap();
+
+        assert_eq!(inventory.attention_entries.len(), 1);
+        assert_eq!(
+            inventory.attention_entries[0].kind,
+            AttentionKind::InvalidInstallationCandidate
+        );
     }
 }

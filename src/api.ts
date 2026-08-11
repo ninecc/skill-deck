@@ -2,12 +2,17 @@ import { invoke } from "@tauri-apps/api/core";
 
 export type Agent = "codex" | "claude";
 export type InstallationKind =
-  | "directory"
-  | "link"
-  | "legacy_directory"
-  | "legacy_link"
-  | "broken_link"
-  | "invalid";
+  "directory" | "link" | "legacy_directory" | "legacy_link";
+export type AttentionKind =
+  | "broken_external_installation"
+  | "invalid_installation_candidate"
+  | "unexpected_agent_root_entry";
+
+export interface InventoryDiagnostic {
+  code: string;
+  message: string;
+  path: string | null;
+}
 
 export interface ValidatedSkill {
   root: string;
@@ -32,12 +37,16 @@ export interface ExternalInstallation {
   logicalPath: string;
   resolvedTarget: string | null;
   kind: InstallationKind;
-  skill: ValidatedSkill | null;
-  diagnostic: {
-    code: string;
-    message: string;
-    path: string | null;
-  } | null;
+  skill: ValidatedSkill;
+  diagnostic: null;
+}
+
+export interface AttentionEntry {
+  agent: Agent;
+  logicalPath: string;
+  resolvedTarget: string | null;
+  kind: AttentionKind;
+  diagnostic: InventoryDiagnostic;
 }
 
 export interface Inventory {
@@ -48,6 +57,7 @@ export interface Inventory {
     legacy: boolean;
   }>;
   externalInstallations: ExternalInstallation[];
+  attentionEntries: AttentionEntry[];
   managedPackages: ManagedSkillPackage[];
 }
 
@@ -274,6 +284,13 @@ export interface DiagnosticsReport {
   }>;
   managedPackageCount: number;
   externalInstallationCount: number;
+  attentionCount: number;
+  attentionEntries: Array<{
+    kind: AttentionKind;
+    agent: Agent;
+    logicalPath: string;
+    diagnostic: InventoryDiagnostic;
+  }>;
   orphanedPackagePaths: string[];
   destination: string;
   omitted: string[];
@@ -556,4 +573,19 @@ export function commandErrorMessage(
       : localized;
   }
   return null;
+}
+
+export function inventoryDiagnosticMessage(
+  diagnostic: InventoryDiagnostic,
+  logicalPath: string,
+  messages: Record<string, string>,
+): string {
+  return (
+    commandErrorMessage(
+      diagnostic.path === logicalPath
+        ? { ...diagnostic, path: null }
+        : diagnostic,
+      messages,
+    ) ?? diagnostic.message
+  );
 }
