@@ -28,3 +28,25 @@ Implemented and verified the cross-platform Skill Deck MVP, including inventory,
 ### Status
 
 [OK] **Completed**
+
+
+## Session 2: Fix Skill Deck inventory diagnostics
+
+**Date**: 2026-08-11
+**Task**: Fix Skill Deck inventory diagnostics
+**Branch**: `main`
+
+### Summary
+
+Separated valid external installations from structured attention entries, improved actionable inventory diagnostics and filters, added regression coverage, and verified the desktop UI.
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `a917112` | (see git log) |
+| `dae8aaa` | (see git log) |
+
+### Status
+
+[OK] **Completed**
