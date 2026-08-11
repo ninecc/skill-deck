@@ -22,10 +22,13 @@ Skill Deck 已完成最初路线中大部分“可信 lifecycle”能力：Codex
 
 目标：让首页成为真实 reconciliation 结果，而不是 persisted state 与目录扫描的并列展示。
 
-- 为每个 Managed Installation 计算 `healthy / missing / drifted / retargeted / configuration_drift / broken`。
-- 核对 logical path、resolved target、deployment mode、installed fingerprint、library revision 和 configuration provenance。
-- 为异常提供与所有权边界一致的 Restore、Detach、Reapply、Forget 或只读诊断入口。
-- 增加真实 Codex/Claude Code contract smoke tests，并完成三平台安装包人工烟测。
+- [x] 为每个 Managed Installation 计算 `healthy / missing / drifted / retargeted / configuration_drift / broken`。
+- [x] 核对 logical path、resolved target、deployment mode、installed fingerprint、library revision 和 configuration provenance。
+- [x] 为异常提供与所有权边界一致的 Restore、Detach、Reapply、Forget 或只读诊断入口。
+- [x] 增加 Codex/Claude Code Agent Projection Contract smoke tests，并在三平台打包前执行。
+- [ ] 完成 Windows NSIS、macOS DMG、Linux AppImage 安装包人工烟测与 Agent Runtime Recognition 验证。
+
+**进度：** 主动对账和 Agent Projection Contract smoke 已完成；R1 仅剩三平台安装包人工烟测。
 
 **完成门槛：** 启动扫描即可发现受管内容丢失、改写、重新指向和配置漂移；任何自动修复都不越过已证明的 ownership。
 
