@@ -92,3 +92,24 @@ Implemented active Managed Installation reconciliation, typed evidence and Rust-
 ### Status
 
 [OK] **Completed**
+
+
+## Session 5: Agent projection contract smoke
+
+**Date**: 2026-08-11
+**Task**: Agent projection contract smoke
+**Branch**: `main`
+
+### Summary
+
+Added Codex and Claude projection lifecycle smoke tests, native packaging gates, and documented projection versus runtime-recognition boundaries.
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `e93f224` | (see git log) |
+
+### Status
+
+[OK] **Completed**
