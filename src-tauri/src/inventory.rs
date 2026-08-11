@@ -173,10 +173,17 @@ pub struct Inventory {
 
 pub fn inventory(app_data: &std::path::Path) -> Result<Inventory, SkillError> {
     let roots = agent_roots()?;
+    inventory_for_agent_roots(app_data, &roots)
+}
+
+pub(crate) fn inventory_for_agent_roots(
+    app_data: &std::path::Path,
+    roots: &AgentRoots,
+) -> Result<Inventory, SkillError> {
     let mut inventory = inventory_for_roots([
-        (Agent::Codex, roots.codex, false),
-        (Agent::Claude, roots.claude, false),
-        (Agent::Codex, roots.codex_legacy, true),
+        (Agent::Codex, roots.codex.clone(), false),
+        (Agent::Claude, roots.claude.clone(), false),
+        (Agent::Codex, roots.codex_legacy.clone(), true),
     ])?;
     let loaded = StateStore::new(app_data.to_path_buf()).load()?;
     if loaded.mode != StateMode::ReadOnlyRecovery {

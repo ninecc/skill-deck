@@ -83,7 +83,7 @@ impl ConfigurationManager {
         )
     }
 
-    fn plan_for_roots(
+    pub(crate) fn plan_for_roots(
         &self,
         app_data: &Path,
         package_id: &str,
@@ -189,6 +189,23 @@ impl ConfigurationManager {
         agent: Agent,
         resolution: ConfigurationResolution,
     ) -> Result<ConfigurationResult, SkillError> {
+        self.resolve_for_roots(
+            app_data,
+            package_id,
+            agent,
+            resolution,
+            inventory::agent_roots()?,
+        )
+    }
+
+    pub(crate) fn resolve_for_roots(
+        &self,
+        app_data: &Path,
+        package_id: &str,
+        agent: Agent,
+        resolution: ConfigurationResolution,
+        roots: AgentRoots,
+    ) -> Result<ConfigurationResult, SkillError> {
         let _mutation = self.mutation.try_lock().map_err(|_| busy_error())?;
         let mut state = load_writable_state(app_data)?;
         let package_index = state
@@ -212,12 +229,9 @@ impl ConfigurationManager {
             installation.configuration_provenance,
             ConfigurationProvenance::SkillDeck { .. }
         ) {
-            return Err(externally_controlled(config_path(
-                agent,
-                &inventory::agent_roots()?,
-            )));
+            return Err(externally_controlled(config_path(agent, &roots)));
         }
-        let current = snapshot(package, installation, &inventory::agent_roots()?)?;
+        let current = snapshot(package, installation, &roots)?;
         if current.entry == Some(installation.enabled) && current.owned_shape {
             return Err(SkillError::new(
                 SkillErrorCode::Conflict,

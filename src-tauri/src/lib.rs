@@ -8,6 +8,8 @@ mod install;
 mod inventory;
 mod library;
 mod lifecycle;
+#[cfg(test)]
+mod projection_contract_smoke;
 mod revision;
 mod skill;
 mod state;

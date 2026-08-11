@@ -314,3 +314,46 @@ await commitRestoreInstallation(
 
 The backend action set explains current eligibility; commit-time reconciliation
 remains the authority when state changes after inventory or preview.
+
+## Scenario: Agent Projection Contract smoke
+
+### 1. Scope / Trigger
+
+Apply this contract whenever Codex or Claude Skill roots, configuration formats,
+native link behavior, inventory reconciliation, or packaging CI changes.
+
+### 2. Contracts
+
+- Codex projects user Skills to `$HOME/.agents/skills` and records Skill Deck-owned
+  overrides in `CODEX_HOME/config.toml` as `[[skills.config]]` entries targeting
+  the installed `SKILL.md`.
+- Claude projects user Skills to `CLAUDE_CONFIG_DIR/skills` and records overrides
+  in `settings.json.skillOverrides`.
+- Contract tests inject temporary `AgentRoots`; they never mutate process-global
+  `HOME`, `CODEX_HOME`, or `CLAUDE_CONFIG_DIR` and never access the network.
+- Both Agents run Import, native linked Install, Healthy, Configuration Drift,
+  Reapply, Missing, Restore, and final Healthy checks. Retarget/Forget separately
+  proves external content remains unchanged.
+- Every native packaging runner executes the focused smoke test before artifact
+  production. A passing projection test does not claim runtime discovery or Skill
+  invocation.
+
+Official sources (last reviewed: 2026-08-11):
+
+- Codex Skills: https://learn.chatgpt.com/docs/build-skills
+- Codex environment variables: https://learn.chatgpt.com/docs/config-file/environment-variables
+- Claude Skills: https://code.claude.com/docs/en/skills
+- Claude settings: https://code.claude.com/docs/en/settings
+- Claude environment variables: https://code.claude.com/docs/en/env-vars
+
+Release preparation must manually revalidate these sources; CI remains offline.
+
+### 3. Tests Required
+
+```bash
+cargo test --manifest-path src-tauri/Cargo.toml --all-features projection_contract_smoke
+```
+
+Run this before `tauri build` on Windows, macOS, and Linux. Windows exercises
+junctions; macOS and Linux exercise symlinks. The macOS runner does not prove
+that the smoke binary executed both architectures in a universal artifact.

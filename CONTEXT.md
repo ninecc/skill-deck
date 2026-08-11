@@ -16,6 +16,14 @@ _Avoid_: Plugin, extension, script
 A supported AI coding agent and its user-level Skill scope, currently Codex or Claude Code.
 _Avoid_: Platform, provider, runtime
 
+**Agent Projection Contract**:
+The Agent Target-specific user-level Skill root, configuration shape, and native linked-installation behavior that Skill Deck must preserve. It does not prove that an Agent runtime loaded or invoked a Skill.
+_Avoid_: Agent runtime test, end-to-end Agent test, Host Contract
+
+**Agent Runtime Recognition**:
+Evidence that an installed Agent runtime discovers a projected Skill after launch. It does not prove reliable triggering or task success.
+_Avoid_: Agent Projection Contract, Skill invocation, Skill effectiveness
+
 **Agent Root Artifact**:
 A known non-Skill file or container owned by an Agent Target or the operating system inside an official user-level Skill root; it is excluded from inventory and diagnostics.
 _Avoid_: External Installation, invalid Skill, ignored Skill
