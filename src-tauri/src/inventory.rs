@@ -507,7 +507,7 @@ fn classify_projection(
             }
             #[cfg(windows)]
             {
-                if !metadata.is_dir() || metadata.file_type().is_symlink() {
+                if !crate::install::is_windows_directory_link(&metadata) {
                     evidence.deferred_checks = true;
                     return broken_topology(installation);
                 }

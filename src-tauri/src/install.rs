@@ -563,6 +563,17 @@ fn native_windows_path(path: &Path) -> PathBuf {
     path.components().collect()
 }
 
+#[cfg(windows)]
+pub(crate) fn is_windows_directory_link(metadata: &fs::Metadata) -> bool {
+    use std::os::windows::fs::MetadataExt;
+
+    const FILE_ATTRIBUTE_DIRECTORY: u32 = 0x10;
+    const FILE_ATTRIBUTE_REPARSE_POINT: u32 = 0x400;
+    let attributes = metadata.file_attributes();
+    attributes & (FILE_ATTRIBUTE_DIRECTORY | FILE_ATTRIBUTE_REPARSE_POINT)
+        == (FILE_ATTRIBUTE_DIRECTORY | FILE_ATTRIBUTE_REPARSE_POINT)
+}
+
 #[cfg(unix)]
 fn relative_path(from: &Path, to: &Path) -> io::Result<PathBuf> {
     use std::path::Component;

@@ -14,6 +14,9 @@ Use this guide when code touches native paths, links, commands, packaging, or
 - Keep normalization at the shared command boundary so production and every
   caller receive the same protection.
 - Do not convert paths with `to_string_lossy()` for filesystem mutation.
+- `symlink_metadata()` describes the link object rather than its target. On
+  Windows, identify directory junctions from the directory and reparse-point
+  attributes, then canonicalize separately to validate the resolved target.
 
 ## Conditional compilation
 

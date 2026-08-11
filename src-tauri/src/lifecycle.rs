@@ -528,7 +528,7 @@ pub(crate) fn validate_installation(
             return Err(unknown_topology(&installation.logical_path));
             #[cfg(windows)]
             {
-                if !metadata.is_dir() {
+                if !crate::install::is_windows_directory_link(&metadata) {
                     return Err(unknown_topology(&installation.logical_path));
                 }
                 ensure_link_target(package, installation)?;
