@@ -813,6 +813,7 @@ mod tests {
         _temp: TempDir,
         app_data: PathBuf,
         package: ManagedSkillPackage,
+        #[cfg(unix)]
         logical: PathBuf,
     }
 
@@ -879,6 +880,7 @@ mod tests {
             _temp: temp,
             app_data,
             package,
+            #[cfg(unix)]
             logical,
         }
     }

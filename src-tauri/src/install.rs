@@ -544,16 +544,23 @@ pub(crate) fn create_preferred_link(
     use std::{os::windows::process::CommandExt, process::Command};
 
     const CREATE_NO_WINDOW: u32 = 0x0800_0000;
+    let source = native_windows_path(source);
+    let destination = native_windows_path(destination);
     let status = Command::new("cmd")
         .args(["/C", "mklink", "/J"])
-        .arg(destination)
-        .arg(source)
+        .arg(&destination)
+        .arg(&source)
         .creation_flags(CREATE_NO_WINDOW)
         .status()?;
     if !status.success() {
         return Err(io::Error::other(format!("mklink /J exited with {status}")));
     }
     Ok(DeploymentMode::Junction)
+}
+
+#[cfg(windows)]
+fn native_windows_path(path: &Path) -> PathBuf {
+    path.components().collect()
 }
 
 #[cfg(unix)]
@@ -768,6 +775,15 @@ mod tests {
         assert_eq!(json["targets"][0]["rootExists"], true);
         assert_eq!(json["targets"][0]["preferredMode"], preferred_mode_json());
         assert!(json.get("package_id").is_none());
+    }
+
+    #[cfg(windows)]
+    #[test]
+    fn junction_command_paths_use_native_separators() {
+        assert_eq!(
+            native_windows_path(Path::new(r"C:\root/mixed/path")),
+            PathBuf::from(r"C:\root\mixed\path")
+        );
     }
 
     #[cfg(unix)]

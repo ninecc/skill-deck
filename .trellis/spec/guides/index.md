@@ -23,6 +23,7 @@ These guides help you **ask the right questions before coding**.
 |-------|---------|-------------|
 | [Code Reuse Thinking Guide](./code-reuse-thinking-guide.md) | Identify patterns and reduce duplication | When you notice repeated patterns |
 | [Cross-Layer Thinking Guide](./cross-layer-thinking-guide.md) | Think through data flow across layers | Features spanning multiple layers |
+| [Cross-Platform Thinking Guide](./cross-platform-thinking-guide.md) | Keep native filesystem and command behavior portable | Native packaging, paths, links, or shell commands |
 
 ---
 
@@ -50,6 +51,15 @@ These guides help you **ask the right questions before coding**.
 - [ ] Multiple branches update the same derived state from `kind` / `action`
 
 → Read [Code Reuse Thinking Guide](./code-reuse-thinking-guide.md)
+
+### When to Think About Cross-Platform Behavior
+
+- [ ] Code invokes an operating-system command or API
+- [ ] A `Path` crosses into a shell or command-line tool
+- [ ] Behavior is selected with `#[cfg(...)]`
+- [ ] A test passes locally but runs differently in native packaging CI
+
+→ Read [Cross-Platform Thinking Guide](./cross-platform-thinking-guide.md)
 
 ### When Verifying AI Cross-Review Results
 
