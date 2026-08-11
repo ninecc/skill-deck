@@ -1,0 +1,3 @@
+{"file":"CONTEXT.md","reason":"Canonical terms distinguish Agent Projection Contract, Agent Runtime Recognition, Linked Installation, Uninstall, and Remove from Library."}
+{"file":"docs/adr/0010-separate-projection-recognition-and-evaluation.md","reason":"Defines the boundary between projection tests, runtime recognition, and later effectiveness evaluation."}
+{"file":".trellis/spec/backend/command-contracts.md","reason":"Records Codex and Claude projection contracts plus the packaging smoke gate before artifact production."}

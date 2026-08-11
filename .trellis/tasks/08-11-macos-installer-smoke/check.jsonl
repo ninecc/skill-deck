@@ -1,0 +1,3 @@
+{"file":"CONTEXT.md","reason":"Check that evidence and lifecycle wording uses canonical domain vocabulary."}
+{"file":"docs/adr/0010-separate-projection-recognition-and-evaluation.md","reason":"Check that no recognition result becomes an invocation or effectiveness claim."}
+{"file":".trellis/spec/backend/command-contracts.md","reason":"Check artifact and Agent Target evidence against existing projection and packaging contracts."}

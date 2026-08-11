@@ -26,9 +26,11 @@ Skill Deck 已完成最初路线中大部分“可信 lifecycle”能力：Codex
 - [x] 核对 logical path、resolved target、deployment mode、installed fingerprint、library revision 和 configuration provenance。
 - [x] 为异常提供与所有权边界一致的 Restore、Detach、Reapply、Forget 或只读诊断入口。
 - [x] 增加 Codex/Claude Code Agent Projection Contract smoke tests，并在三平台打包前执行。
-- [ ] 完成 Windows NSIS、macOS DMG、Linux AppImage 安装包人工烟测与 Agent Runtime Recognition 验证。
+- [x] 完成 macOS universal DMG 安装包人工烟测与 Codex/Claude Code Agent Runtime Recognition 验证。
+- [ ] 完成 Windows NSIS 安装包人工烟测与 Codex/Claude Code Agent Runtime Recognition 验证。
+- [ ] 完成 Linux AppImage 安装包人工烟测与 Codex/Claude Code Agent Runtime Recognition 验证。
 
-**进度：** 主动对账和 Agent Projection Contract smoke 已完成；R1 仅剩三平台安装包人工烟测。
+**进度：** 主动对账、Agent Projection Contract smoke 和 macOS universal DMG 人工烟测已完成；R1 尚待 Windows NSIS 与 Linux AppImage 原生主机验证。
 
 **完成门槛：** 启动扫描即可发现受管内容丢失、改写、重新指向和配置漂移；任何自动修复都不越过已证明的 ownership。
 
