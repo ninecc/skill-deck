@@ -71,3 +71,24 @@ Added the primary-source skill manager landscape research and separated the impl
 ### Status
 
 [OK] **Completed**
+
+
+## Session 4: Complete trustworthy inventory P0
+
+**Date**: 2026-08-11
+**Task**: Complete trustworthy inventory P0
+**Branch**: `main`
+
+### Summary
+
+Implemented active Managed Installation reconciliation, typed evidence and Rust-owned actions, safe Restore/Detach/Forget/removal recovery flows, exhaustive UI disclosure, and full regression coverage.
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `e9b7f5d7a3391566960d4ee9440f8f4e4e34e7a5` | (see git log) |
+
+### Status
+
+[OK] **Completed**
