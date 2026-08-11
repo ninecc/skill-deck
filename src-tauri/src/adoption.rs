@@ -862,7 +862,9 @@ fn lock_error() -> SkillError {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{install::InstallManager, state::AppState};
+    use crate::install::InstallManager;
+    #[cfg(unix)]
+    use crate::state::AppState;
     use tempfile::TempDir;
 
     struct Fixture {

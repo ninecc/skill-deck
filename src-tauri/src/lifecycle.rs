@@ -816,8 +816,8 @@ mod tests {
         logical: PathBuf,
     }
 
-    #[cfg(unix)]
     fn fixture(mode: DeploymentMode, provenance: ConfigurationProvenance) -> Fixture {
+        #[cfg(unix)]
         use std::os::unix::fs::symlink;
 
         let temp = TempDir::new().unwrap();
@@ -835,7 +835,12 @@ mod tests {
         let logical = temp.path().join("agent/skills/alpha-skill");
         fs::create_dir_all(logical.parent().unwrap()).unwrap();
         match mode {
-            DeploymentMode::Symlink => symlink(&library, &logical).unwrap(),
+            DeploymentMode::Symlink => {
+                #[cfg(unix)]
+                symlink(&library, &logical).unwrap();
+                #[cfg(not(unix))]
+                unreachable!();
+            }
             DeploymentMode::CopyFallback => copy_directory(&library, &logical).unwrap(),
             DeploymentMode::Junction => unreachable!(),
         }
