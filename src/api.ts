@@ -59,6 +59,54 @@ export interface Inventory {
   externalInstallations: ExternalInstallation[];
   attentionEntries: AttentionEntry[];
   managedPackages: ManagedSkillPackage[];
+  managedInstallationStatuses: ManagedInstallationReconciliation[];
+  managedPackageReconciliations: ManagedPackageReconciliation[];
+}
+
+export type ManagedInstallationStatus =
+  | "healthy"
+  | "missing"
+  | "retargeted"
+  | "drifted"
+  | "configuration_drift"
+  | "broken";
+
+export type ManagedInstallationAction =
+  | "enable_configuration"
+  | "disable_configuration"
+  | "reapply_configuration"
+  | "forget_configuration"
+  | "restore"
+  | "detach"
+  | "uninstall"
+  | "forget_installation";
+
+export type ManagedPackageAction =
+  "install" | "replace" | "check_update" | "rollback" | "export" | "remove";
+
+export interface ManagedInstallationReconciliation {
+  packageId: string;
+  agent: Agent;
+  status: ManagedInstallationStatus;
+  diagnostic: InventoryDiagnostic | null;
+  evidence: {
+    logicalPath: string;
+    deploymentMode: "symlink" | "junction" | "copy_fallback";
+    expectedTarget: string | null;
+    observedTarget: string | null;
+    recordedFingerprint: string;
+    libraryFingerprint: string;
+    observedFingerprint: string | null;
+    configurationProvenance: ManagedSkillPackage["installations"][number]["configurationProvenance"];
+    deferredChecks: boolean;
+  };
+  availableActions: ManagedInstallationAction[];
+}
+
+export interface ManagedPackageReconciliation {
+  packageId: string;
+  libraryDiagnostic: InventoryDiagnostic | null;
+  availableActions: ManagedPackageAction[];
 }
 
 export interface ManagedSkillPackage {
@@ -153,8 +201,18 @@ export interface RemoveLibraryPlan {
   previousRevision: ManagedSkillPackage["previousRevision"];
   libraryPath: string;
   bytes: number;
+  rootExisted: boolean;
   localSnapshotLastCopyWarning: boolean;
   exportCurrentPath: string;
+  unrecoverableContentWarning: boolean;
+}
+
+export interface ForgetInstallationPlan {
+  id: string;
+  packageId: string;
+  agent: Agent;
+  logicalPath: string;
+  status: "missing" | "retargeted" | "broken";
 }
 
 export interface LifecycleResult {
@@ -204,8 +262,11 @@ export interface RestoreInstallationPlan {
   agent: Agent;
   logicalPath: string;
   expectedFingerprint: string;
-  observedFingerprint: string;
-  willOverwrite: true;
+  observedFingerprint: string | null;
+  willOverwrite: boolean;
+  operation: "recreate" | "replace";
+  deploymentMode: "symlink" | "junction" | "copy_fallback";
+  createsAgentRoot: boolean;
 }
 
 export interface ExternalInstallationIdentity {
@@ -396,6 +457,22 @@ export function commitDetach(planId: string): Promise<LifecycleResult> {
   return invoke<LifecycleResult>("commit_detach", { planId });
 }
 
+export function planForgetInstallation(
+  packageId: string,
+  agent: Agent,
+): Promise<ForgetInstallationPlan> {
+  return invoke<ForgetInstallationPlan>("plan_forget_installation", {
+    packageId,
+    agent,
+  });
+}
+
+export function commitForgetInstallation(
+  planId: string,
+): Promise<LifecycleResult> {
+  return invoke<LifecycleResult>("commit_forget_installation", { planId });
+}
+
 export function planRemoveLibrary(
   packageId: string,
 ): Promise<RemoveLibraryPlan> {
@@ -467,10 +544,12 @@ export function planRestoreInstallation(
 export function commitRestoreInstallation(
   planId: string,
   confirmOverwrite: boolean,
+  confirmCreateRoot: boolean,
 ): Promise<InstallResult> {
   return invoke<InstallResult>("commit_restore_installation", {
     planId,
     confirmOverwrite,
+    confirmCreateRoot,
   });
 }
 

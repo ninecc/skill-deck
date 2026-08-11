@@ -148,6 +148,18 @@ _Avoid_: Changelog, security report
 A difference between an Installation's current content and its Managed Skill Package's Installed Revision.
 _Avoid_: Dirty state, local changes, corruption
 
+**Broken Managed Installation**:
+A Managed Installation whose recorded library, deployment shape, link topology, or installed structure cannot be safely reconciled into a more specific recoverable status.
+_Avoid_: Broken External Installation, Content Drift, Retargeted Installation
+
+**Installation Status**:
+The single highest-priority reconciliation result for a Managed Installation: Healthy, Missing, Retargeted, Content Drift, Configuration Drift, or Broken Managed Installation. It carries factual reconciliation evidence and the currently available ownership-safe actions, and may defer lower-priority checks until the next inventory refresh.
+_Avoid_: Health score, exhaustive issue list, risk level
+
+**Reconciliation Evidence**:
+The expected and observed paths, deployment mode, targets, fingerprints, or configuration provenance that explain an Installation Status without certifying safety.
+_Avoid_: Error message, risk score, authorization
+
 **Source Diverged**:
 The state in which a Git Skill Source's remote tracked branch cannot fast-forward from the Installed Revision.
 _Avoid_: Update available, conflict
@@ -169,12 +181,16 @@ App-owned Skill Package content found during Read-only Recovery without a trustw
 _Avoid_: Managed Skill Package, External Installation
 
 **Restore Installation**:
-The explicit replacement of a drifted Installation with its Managed Skill Package's Installed Revision.
-_Avoid_: Update, reset
+The explicit recreation of a missing Installation or replacement of a drifted Installation from its Managed Skill Package's Installed Revision.
+_Avoid_: Update, reset, Recreate Installation
 
 **Detach Installation**:
 The removal of an Installation from a Managed Skill Package while preserving its content as a standalone External Installation; a linked entry is converted to a copy first.
 _Avoid_: Uninstall, delete, abandon
+
+**Forget Installation**:
+The removal of Skill Deck's persisted Installation record without changing the observed Agent Target path, target content, or configuration. It is an explicit ownership escape hatch for a Missing, Retargeted, or Broken Installation that cannot or should not be safely restored.
+_Avoid_: Detach Installation, Uninstall, Forget Configuration, delete
 
 **Uninstall**:
 The removal of one Installation from an Agent Target without removing its Managed Skill Package from Skill Deck.

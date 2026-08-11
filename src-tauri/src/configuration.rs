@@ -95,6 +95,11 @@ impl ConfigurationManager {
         let state = load_writable_state(app_data)?;
         let package = find_package(&state, package_id)?;
         let installation = find_installation(package, agent)?;
+        ensure_reconciliation_status(
+            package,
+            installation,
+            inventory::ManagedInstallationStatus::Healthy,
+        )?;
         let snapshot = snapshot(package, installation, &roots)?;
         ensure_writable(installation, &snapshot)?;
 
@@ -142,6 +147,11 @@ impl ConfigurationManager {
             .ok_or_else(invalid_plan)?;
         let package = &state.packages[package_index];
         let installation = &package.installations[installation_index];
+        ensure_reconciliation_status(
+            package,
+            installation,
+            inventory::ManagedInstallationStatus::Healthy,
+        )?;
         let current = snapshot(package, installation, &plan.roots)?;
         if current.bytes != plan.original {
             return Err(configuration_drift(current.path));
@@ -193,6 +203,11 @@ impl ConfigurationManager {
             .ok_or_else(invalid_plan)?;
         let package = &state.packages[package_index];
         let installation = &package.installations[installation_index];
+        ensure_reconciliation_status(
+            package,
+            installation,
+            inventory::ManagedInstallationStatus::ConfigurationDrift,
+        )?;
         if !matches!(
             installation.configuration_provenance,
             ConfigurationProvenance::SkillDeck { .. }
@@ -827,6 +842,27 @@ fn find_installation(
         .ok_or_else(invalid_plan)
 }
 
+fn ensure_reconciliation_status(
+    package: &ManagedSkillPackage,
+    installation: &Installation,
+    expected: inventory::ManagedInstallationStatus,
+) -> Result<(), SkillError> {
+    let reconciliation = inventory::reconcile_installation(package, installation);
+    if reconciliation.status == expected {
+        return Ok(());
+    }
+    Err(reconciliation
+        .diagnostic
+        .map(|diagnostic| SkillError::new(diagnostic.code, diagnostic.message, diagnostic.path))
+        .unwrap_or_else(|| {
+            SkillError::new(
+                SkillErrorCode::Conflict,
+                "Configuration action is unavailable for the current Installation status",
+                Some(installation.logical_path.clone()),
+            )
+        }))
+}
+
 fn invalid_config(path: &Path, error: impl std::fmt::Display) -> SkillError {
     SkillError::new(
         SkillErrorCode::InvalidStructure,
@@ -1148,6 +1184,26 @@ mod tests {
     }
 
     #[test]
+    fn missing_installation_blocks_configuration_mutation() {
+        let fixture = fixture(Agent::Claude, ConfigurationProvenance::None, true);
+        fs::remove_dir_all(&fixture.package.installations[0].logical_path).unwrap();
+
+        assert_eq!(
+            ConfigurationManager::default()
+                .plan_for_roots(
+                    &fixture.app_data,
+                    "package-1",
+                    Agent::Claude,
+                    false,
+                    fixture.roots,
+                )
+                .unwrap_err()
+                .code,
+            SkillErrorCode::InstallationMissing
+        );
+    }
+
+    #[test]
     fn removed_external_configuration_is_drift() {
         let fixture = fixture(
             Agent::Claude,
@@ -1190,13 +1246,24 @@ mod tests {
             Agent::Codex => roots.codex.join("alpha-skill"),
             Agent::Claude => roots.claude.join("alpha-skill"),
         };
+        let library_path = app_data.join("library/alpha-skill/current");
+        fs::create_dir_all(&library_path).unwrap();
+        fs::write(
+            library_path.join("SKILL.md"),
+            "---\nname: alpha-skill\ndescription: Configuration fixture\n---\n",
+        )
+        .unwrap();
+        let fingerprint = crate::skill::validate_installed_revision(&library_path, "alpha-skill")
+            .unwrap()
+            .fingerprint;
+        crate::library::copy_directory(&library_path, &logical_path).unwrap();
         let package = ManagedSkillPackage {
             id: "package-1".to_owned(),
             name: "alpha-skill".to_owned(),
-            library_path: app_data.join("library/alpha-skill/current"),
+            library_path,
             source: SkillSource::LocalSnapshot,
             installed_revision: InstalledRevision {
-                fingerprint: "fingerprint".to_owned(),
+                fingerprint: fingerprint.clone(),
                 commit_oid: None,
             },
             previous_revision: None,
@@ -1206,7 +1273,7 @@ mod tests {
                 resolved_target: logical_path,
                 deployment_mode: DeploymentMode::CopyFallback,
                 enabled,
-                last_known_fingerprint: "fingerprint".to_owned(),
+                last_known_fingerprint: fingerprint,
                 configuration_provenance: provenance,
             }],
         };

@@ -8,10 +8,9 @@ use std::{
 use serde::Serialize;
 
 use crate::{
-    install::RESTART_MESSAGE,
-    inventory::Agent,
+    install::{copy_atomically, create_preferred_link, remove_created_entry, RESTART_MESSAGE},
+    inventory::{self, Agent, ManagedInstallationStatus},
     library::{copy_directory, next_id, remove_directory},
-    lifecycle,
     skill::{self, SkillError, SkillErrorCode, ValidatedSkill},
     state::{
         AppState, DeploymentMode, Installation, InstalledRevision, ManagedSkillPackage,
@@ -73,8 +72,18 @@ pub struct RestoreInstallationPlan {
     pub agent: Agent,
     pub logical_path: PathBuf,
     pub expected_fingerprint: String,
-    pub observed_fingerprint: String,
+    pub observed_fingerprint: Option<String>,
     pub will_overwrite: bool,
+    pub operation: RestoreOperation,
+    pub deployment_mode: DeploymentMode,
+    pub creates_agent_root: bool,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub enum RestoreOperation {
+    Recreate,
+    Replace,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
@@ -416,7 +425,8 @@ impl RevisionManager {
         let _mutation = self.mutation.try_lock().map_err(|_| busy_error())?;
         let state = load_writable_state(app_data)?;
         let package = find_package(&state, package_id)?.clone();
-        validate_package(app_data, &package)?;
+        ensure_owned_library(app_data, &package)?;
+        validate_library(&package)?;
         if destination.starts_with(&package.library_path) {
             return Err(SkillError::new(
                 SkillErrorCode::InvalidStructure,
@@ -469,7 +479,8 @@ impl RevisionManager {
         if find_package(&state, &public.package_id)? != &package {
             return Err(stale_plan("Export Revision"));
         }
-        validate_package(app_data, &package)?;
+        ensure_owned_library(app_data, &package)?;
+        validate_library(&package)?;
         ensure_absent(&public.destination)?;
         let staging = public
             .destination
@@ -513,16 +524,28 @@ impl RevisionManager {
             .iter()
             .find(|installation| installation.agent == agent)
             .ok_or_else(|| invalid_plan("Restore Installation"))?;
-        ensure_copy_directory(installation)?;
-        let observed =
-            skill::validate_installed_revision(&installation.logical_path, &package.name)?;
-        if observed.fingerprint == package.installed_revision.fingerprint {
-            return Err(SkillError::new(
-                SkillErrorCode::Conflict,
-                "The selected Installation has no Content Drift to restore",
-                Some(installation.logical_path.clone()),
-            ));
-        }
+        let observed = match fs::symlink_metadata(&installation.logical_path) {
+            Err(error) if error.kind() == io::ErrorKind::NotFound => None,
+            Err(error) => return Err(SkillError::io(&installation.logical_path, error)),
+            Ok(_) => {
+                ensure_copy_directory(installation)?;
+                let observed =
+                    skill::validate_installed_revision(&installation.logical_path, &package.name)?;
+                if observed.fingerprint == package.installed_revision.fingerprint {
+                    return Err(SkillError::new(
+                        SkillErrorCode::Conflict,
+                        "The selected Installation has no Content Drift to restore",
+                        Some(installation.logical_path.clone()),
+                    ));
+                }
+                Some(observed.fingerprint)
+            }
+        };
+        let operation = if observed.is_some() {
+            RestoreOperation::Replace
+        } else {
+            RestoreOperation::Recreate
+        };
         let id = next_id();
         let public = RestoreInstallationPlan {
             id: id.clone(),
@@ -530,8 +553,15 @@ impl RevisionManager {
             agent,
             logical_path: installation.logical_path.clone(),
             expected_fingerprint: package.installed_revision.fingerprint.clone(),
-            observed_fingerprint: observed.fingerprint,
-            will_overwrite: true,
+            observed_fingerprint: observed,
+            will_overwrite: operation == RestoreOperation::Replace,
+            operation,
+            deployment_mode: installation.deployment_mode,
+            creates_agent_root: !installation
+                .logical_path
+                .parent()
+                .expect("managed installation has an Agent root")
+                .is_dir(),
         };
         self.insert(
             id,
@@ -543,21 +573,29 @@ impl RevisionManager {
         Ok(public)
     }
 
-    pub fn commit_restore(
+    pub fn commit_restore_with_root_confirmation(
         &self,
         app_data: &Path,
         plan_id: &str,
         confirm_overwrite: bool,
+        confirm_create_root: bool,
     ) -> Result<RevisionResult, SkillError> {
         let _mutation = self.mutation.try_lock().map_err(|_| busy_error())?;
         let PendingPlan::Restore { public, package } = self.take(plan_id)? else {
             return Err(invalid_plan("Restore Installation"));
         };
-        if !confirm_overwrite {
+        if public.operation == RestoreOperation::Replace && !confirm_overwrite {
             return Err(SkillError::new(
                 SkillErrorCode::InvalidPlan,
                 "Restore Installation requires explicit overwrite confirmation",
                 Some(public.logical_path),
+            ));
+        }
+        if public.creates_agent_root && !confirm_create_root {
+            return Err(SkillError::new(
+                SkillErrorCode::AgentRootMissing,
+                "Restore requires explicit confirmation before creating the missing Agent root",
+                public.logical_path.parent().map(Path::to_path_buf),
             ));
         }
         let mut state = load_writable_state(app_data)?;
@@ -576,10 +614,76 @@ impl RevisionManager {
             })
             .ok_or_else(|| stale_plan("Restore Installation"))?;
         let installation = &package.installations[installation_index];
+        if installation.deployment_mode != public.deployment_mode {
+            return Err(stale_plan("Restore Installation"));
+        }
+        if public.operation == RestoreOperation::Recreate {
+            match fs::symlink_metadata(&installation.logical_path) {
+                Ok(_) => return Err(stale_plan("Restore Installation")),
+                Err(error) if error.kind() == io::ErrorKind::NotFound => {}
+                Err(error) => return Err(SkillError::io(&installation.logical_path, error)),
+            }
+            let root = installation
+                .logical_path
+                .parent()
+                .expect("managed installation has an Agent root");
+            if root.exists() && !root.is_dir() {
+                return Err(stale_plan("Restore Installation"));
+            }
+            let created_root = !root.exists();
+            if created_root && !public.creates_agent_root {
+                return Err(stale_plan("Restore Installation"));
+            }
+            if created_root {
+                fs::create_dir_all(root).map_err(|error| SkillError::io(root, error))?;
+            }
+            let created = match installation.deployment_mode {
+                DeploymentMode::CopyFallback => copy_atomically(
+                    &package.library_path,
+                    &installation.logical_path,
+                    plan_id,
+                    &package.name,
+                    &public.expected_fingerprint,
+                ),
+                mode => create_preferred_link(&package.library_path, &installation.logical_path)
+                    .map_err(|error| SkillError::io(&installation.logical_path, error))
+                    .and_then(|actual| {
+                        if actual == mode {
+                            Ok(())
+                        } else {
+                            remove_created_entry(&installation.logical_path)?;
+                            Err(SkillError::new(
+                                SkillErrorCode::TopologyChanged,
+                                "This platform cannot recreate the recorded deployment mode",
+                                Some(installation.logical_path.clone()),
+                            ))
+                        }
+                    }),
+            };
+            if let Err(error) = created {
+                if created_root {
+                    let _ = fs::remove_dir(root);
+                }
+                return Err(error);
+            }
+            state.packages[package_index].installations[installation_index]
+                .last_known_fingerprint = public.expected_fingerprint.clone();
+            if let Err(error) = StateStore::new(app_data.to_path_buf()).save(&state) {
+                remove_created_entry(&installation.logical_path)?;
+                if created_root {
+                    let _ = fs::remove_dir(root);
+                }
+                return Err(error);
+            }
+            return Ok(RevisionResult {
+                package: state.packages[package_index].clone(),
+                restart_message: RESTART_MESSAGE,
+            });
+        }
         ensure_copy_directory(installation)?;
         let observed =
             skill::validate_installed_revision(&installation.logical_path, &package.name)?;
-        if observed.fingerprint != public.observed_fingerprint {
+        if Some(&observed.fingerprint) != public.observed_fingerprint.as_ref() {
             return Err(stale_plan("Restore Installation"));
         }
         let staging = sibling(&installation.logical_path, "restore", plan_id);
@@ -846,7 +950,15 @@ fn validate_package(app_data: &Path, package: &ManagedSkillPackage) -> Result<()
     ensure_owned_library(app_data, package)?;
     validate_library(package)?;
     for installation in &package.installations {
-        lifecycle::validate_installation(package, installation)?;
+        let reconciliation = inventory::reconcile_installation(package, installation);
+        if reconciliation.status != ManagedInstallationStatus::Healthy {
+            return Err(reconciliation
+                .diagnostic
+                .map(|diagnostic| {
+                    SkillError::new(diagnostic.code, diagnostic.message, diagnostic.path)
+                })
+                .unwrap_or_else(|| topology_changed(&installation.logical_path)));
+        }
     }
     Ok(())
 }
@@ -1221,6 +1333,22 @@ mod tests {
     }
 
     #[test]
+    fn configuration_drift_freezes_revision_expansion() {
+        let mut fixture = fixture(1);
+        fixture.package.installations[0].configuration_provenance =
+            ConfigurationProvenance::SkillDeck {
+                path: fixture._temp.path().join("missing-settings.json"),
+            };
+
+        assert_eq!(
+            validate_managed_package(&fixture.app_data, &fixture.package)
+                .unwrap_err()
+                .code,
+            SkillErrorCode::ConfigurationDrift
+        );
+    }
+
+    #[test]
     fn changed_source_invalidates_replacement_plan() {
         let mut fixture = fixture(0);
         let source = replacement(&mut fixture, "alpha-skill", "v2");
@@ -1330,9 +1458,12 @@ mod tests {
             .plan_restore(&fixture.app_data, &fixture.package.id, selected.agent)
             .unwrap();
         assert!(plan.will_overwrite);
-        assert_ne!(plan.observed_fingerprint, plan.expected_fingerprint);
+        assert_ne!(
+            plan.observed_fingerprint.as_ref(),
+            Some(&plan.expected_fingerprint)
+        );
         manager
-            .commit_restore(&fixture.app_data, &plan.id, true)
+            .commit_restore_with_root_confirmation(&fixture.app_data, &plan.id, true, false)
             .unwrap();
 
         assert_eq!(
@@ -1347,6 +1478,79 @@ mod tests {
                 .fingerprint,
             fixture.package.installed_revision.fingerprint
         );
+    }
+
+    #[test]
+    fn restore_recreates_missing_copy_without_overwrite_confirmation() {
+        let fixture = fixture(1);
+        let selected = &fixture.package.installations[0];
+        fs::remove_dir_all(&selected.logical_path).unwrap();
+        let manager = RevisionManager::default();
+        let plan = manager
+            .plan_restore(&fixture.app_data, &fixture.package.id, selected.agent)
+            .unwrap();
+        assert_eq!(plan.operation, RestoreOperation::Recreate);
+        assert!(!plan.will_overwrite);
+        assert!(!plan.creates_agent_root);
+
+        manager
+            .commit_restore_with_root_confirmation(&fixture.app_data, &plan.id, false, false)
+            .unwrap();
+        assert_eq!(
+            skill::validate_installed_revision(&selected.logical_path, "alpha-skill")
+                .unwrap()
+                .fingerprint,
+            fixture.package.installed_revision.fingerprint
+        );
+    }
+
+    #[test]
+    fn restore_requires_confirmation_before_creating_missing_agent_root() {
+        let fixture = fixture(1);
+        let selected = &fixture.package.installations[0];
+        fs::remove_dir_all(selected.logical_path.parent().unwrap()).unwrap();
+        let manager = RevisionManager::default();
+        let plan = manager
+            .plan_restore(&fixture.app_data, &fixture.package.id, selected.agent)
+            .unwrap();
+        assert!(plan.creates_agent_root);
+        assert_eq!(
+            manager
+                .commit_restore_with_root_confirmation(&fixture.app_data, &plan.id, false, false,)
+                .unwrap_err()
+                .code,
+            SkillErrorCode::AgentRootMissing
+        );
+        assert!(!selected.logical_path.parent().unwrap().exists());
+        let plan = manager
+            .plan_restore(&fixture.app_data, &fixture.package.id, selected.agent)
+            .unwrap();
+        manager
+            .commit_restore_with_root_confirmation(&fixture.app_data, &plan.id, false, true)
+            .unwrap();
+        assert!(selected.logical_path.join("SKILL.md").is_file());
+    }
+
+    #[test]
+    fn restore_is_stale_when_agent_root_disappears_after_preview() {
+        let fixture = fixture(1);
+        let selected = &fixture.package.installations[0];
+        fs::remove_dir_all(&selected.logical_path).unwrap();
+        let manager = RevisionManager::default();
+        let plan = manager
+            .plan_restore(&fixture.app_data, &fixture.package.id, selected.agent)
+            .unwrap();
+        assert!(!plan.creates_agent_root);
+        fs::remove_dir(selected.logical_path.parent().unwrap()).unwrap();
+
+        assert_eq!(
+            manager
+                .commit_restore_with_root_confirmation(&fixture.app_data, &plan.id, false, true)
+                .unwrap_err()
+                .code,
+            SkillErrorCode::InvalidPlan
+        );
+        assert!(!selected.logical_path.parent().unwrap().exists());
     }
 
     #[test]

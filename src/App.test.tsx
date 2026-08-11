@@ -12,6 +12,8 @@ vi.mock("@tauri-apps/api/core", () => ({ invoke: invokeMock }));
 const inventory = {
   targets: [],
   managedPackages: [],
+  managedInstallationStatuses: [],
+  managedPackageReconciliations: [],
   externalInstallations: [
     {
       agent: "codex",
@@ -147,5 +149,167 @@ describe("App inventory", () => {
       localeSelect!.dispatchEvent(new Event("change", { bubbles: true }));
     });
     expect(invokeMock).toHaveBeenCalledTimes(callsBeforeLocaleChange);
+  });
+
+  it("renders backend-owned managed status, evidence, and actions", async () => {
+    const managedInventory = {
+      ...inventory,
+      externalInstallations: [],
+      attentionEntries: [],
+      managedPackages: [
+        {
+          id: "package-1",
+          name: "managed-skill",
+          libraryPath: "/library/managed-skill/current",
+          source: { type: "local_snapshot" },
+          installedRevision: {
+            fingerprint: "aaaaaaaaaaaaaaaaaaaaaaaa",
+            commitOid: null,
+          },
+          previousRevision: null,
+          installations: [
+            {
+              agent: "claude",
+              logicalPath: "/agents/skills/managed-skill",
+              resolvedTarget: "/library/managed-skill/current",
+              deploymentMode: "symlink",
+              enabled: true,
+              lastKnownFingerprint: "aaaaaaaaaaaaaaaaaaaaaaaa",
+              configurationProvenance: { owner: "none" },
+            },
+          ],
+        },
+      ],
+      managedInstallationStatuses: [
+        {
+          packageId: "package-1",
+          agent: "claude",
+          status: "retargeted",
+          diagnostic: {
+            code: "topology_changed",
+            message: "Retargeted",
+            path: "/agents/skills/managed-skill",
+          },
+          evidence: {
+            logicalPath: "/agents/skills/managed-skill",
+            deploymentMode: "symlink",
+            expectedTarget: "/library/managed-skill/current",
+            observedTarget: "/outside/managed-skill",
+            recordedFingerprint: "aaaaaaaaaaaaaaaaaaaaaaaa",
+            libraryFingerprint: "aaaaaaaaaaaaaaaaaaaaaaaa",
+            observedFingerprint: null,
+            configurationProvenance: { owner: "none" },
+            deferredChecks: true,
+          },
+          availableActions: ["forget_installation"],
+        },
+      ],
+      managedPackageReconciliations: [
+        {
+          packageId: "package-1",
+          libraryDiagnostic: null,
+          availableActions: ["export"],
+        },
+      ],
+    };
+    invokeMock.mockImplementation((command: string) => {
+      if (command === "inventory") return Promise.resolve(managedInventory);
+      if (command === "state_status") {
+        return Promise.resolve({
+          mode: "active",
+          state: { packages: managedInventory.managedPackages },
+          diagnostic: null,
+        });
+      }
+      return Promise.reject(new Error(`Unexpected command: ${command}`));
+    });
+
+    await act(async () => root.render(<App />));
+
+    expect(container.textContent).toContain("managed-skill");
+    expect(container.textContent).toContain("Retargeted");
+    expect(container.textContent).toContain("/library/managed-skill/current");
+    expect(container.textContent).toContain("/outside/managed-skill");
+    expect(container.textContent).toContain("Forget installation");
+    expect(container.textContent).not.toContain("Uninstall");
+    expect(container.textContent).not.toContain("Install to agents");
+  });
+
+  it("displays a broken Managed Library diagnostic only once per package", async () => {
+    const libraryDiagnostic = {
+      code: "content_drift",
+      message: "Managed Library changed",
+      path: "/library/managed-skill/current",
+    };
+    const managedInventory = {
+      ...inventory,
+      managedPackages: [
+        {
+          id: "package-1",
+          name: "managed-skill",
+          libraryPath: "/library/managed-skill/current",
+          source: { type: "local_snapshot" },
+          installedRevision: { fingerprint: "aaaa", commitOid: null },
+          previousRevision: null,
+          installations: [
+            {
+              agent: "claude",
+              logicalPath: "/agents/skills/managed-skill",
+              resolvedTarget: "/library/managed-skill/current",
+              deploymentMode: "symlink",
+              enabled: true,
+              lastKnownFingerprint: "aaaa",
+              configurationProvenance: { owner: "none" },
+            },
+          ],
+        },
+      ],
+      managedInstallationStatuses: [
+        {
+          packageId: "package-1",
+          agent: "claude",
+          status: "broken",
+          diagnostic: libraryDiagnostic,
+          evidence: {
+            logicalPath: "/agents/skills/managed-skill",
+            deploymentMode: "symlink",
+            expectedTarget: "/library/managed-skill/current",
+            observedTarget: null,
+            recordedFingerprint: "aaaa",
+            libraryFingerprint: "aaaa",
+            observedFingerprint: null,
+            configurationProvenance: { owner: "none" },
+            deferredChecks: true,
+          },
+          availableActions: ["forget_installation"],
+        },
+      ],
+      managedPackageReconciliations: [
+        {
+          packageId: "package-1",
+          libraryDiagnostic,
+          availableActions: [],
+        },
+      ],
+    };
+    invokeMock.mockImplementation((command: string) =>
+      command === "inventory"
+        ? Promise.resolve(managedInventory)
+        : command === "state_status"
+          ? Promise.resolve({
+              mode: "active",
+              state: { packages: managedInventory.managedPackages },
+              diagnostic: null,
+            })
+          : Promise.reject(new Error(`Unexpected command: ${command}`)),
+    );
+
+    await act(async () => root.render(<App />));
+
+    expect(
+      container.textContent?.match(
+        /Managed Skill content changed outside Skill Deck\./g,
+      ),
+    ).toHaveLength(1);
   });
 });

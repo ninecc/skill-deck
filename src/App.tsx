@@ -12,6 +12,9 @@ import {
   type AttentionEntry,
   type ExternalInstallation,
   type Inventory,
+  type ManagedInstallationAction,
+  type ManagedInstallationReconciliation,
+  type ManagedPackageAction,
   type ManagedSkillPackage,
   type StateStatus,
 } from "./api";
@@ -41,6 +44,31 @@ function attentionLabel(entry: AttentionEntry, copy: Messages) {
     case "unexpected_agent_root_entry":
       return copy.unexpectedAgentRootEntry;
   }
+}
+
+function managedStatusLabel(
+  status: ManagedInstallationReconciliation["status"],
+  copy: Messages,
+) {
+  switch (status) {
+    case "healthy":
+    case "missing":
+    case "retargeted":
+    case "drifted":
+    case "configuration_drift":
+    case "broken":
+      return copy[`status_${status}`];
+    default:
+      return unreachable(status);
+  }
+}
+
+function shortFingerprint(value: string) {
+  return value.slice(0, 12);
+}
+
+function unreachable(value: never): never {
+  throw new Error(`Unexpected backend enum value: ${String(value)}`);
 }
 
 export default function App() {
@@ -110,6 +138,18 @@ export default function App() {
     (entry) => entry.kind !== "unexpected_agent_root_entry",
   );
   const managedPackages = inventory?.managedPackages ?? [];
+  const managedStatuses = new Map(
+    (inventory?.managedInstallationStatuses ?? []).map((entry) => [
+      `${entry.packageId}:${entry.agent}`,
+      entry,
+    ]),
+  );
+  const packageReconciliations = new Map(
+    (inventory?.managedPackageReconciliations ?? []).map((entry) => [
+      entry.packageId,
+      entry,
+    ]),
+  );
   const readOnly = stateStatus?.mode === "read_only_recovery";
   const normalizedQuery = query.trim().toLowerCase();
   const visibleManaged = managedPackages.filter(
@@ -199,6 +239,194 @@ export default function App() {
         );
       })
       .finally(() => setConfigurationBusy(null));
+  }
+
+  function resolveInventoryDrift(
+    packageId: string,
+    agent: "codex" | "claude",
+    resolution: "reapply" | "forget",
+  ) {
+    setConfigurationBusy(`${packageId}:${agent}`);
+    setActionError(null);
+    void resolveConfiguration(packageId, agent, resolution)
+      .then(() => {
+        setNotice(copy.restartFallback);
+        refresh();
+      })
+      .catch((error: unknown) =>
+        setActionError(
+          commandErrorMessage(error, copy.errors) ?? copy.unknownError,
+        ),
+      )
+      .finally(() => setConfigurationBusy(null));
+  }
+
+  function installationActionButton(
+    skill: ManagedSkillPackage,
+    installation: ManagedSkillPackage["installations"][number],
+    action: ManagedInstallationAction,
+  ) {
+    const busy = configurationBusy === `${skill.id}:${installation.agent}`;
+    switch (action) {
+      case "enable_configuration":
+      case "disable_configuration":
+        return (
+          <button
+            className="text-button"
+            type="button"
+            disabled={readOnly || busy}
+            onClick={() =>
+              toggleConfiguration(
+                skill.id,
+                installation.agent,
+                action === "enable_configuration",
+              )
+            }
+          >
+            {busy
+              ? copy.saving
+              : action === "enable_configuration"
+                ? copy.enable
+                : copy.disable}
+          </button>
+        );
+      case "reapply_configuration":
+      case "forget_configuration":
+        return (
+          <button
+            className="text-button"
+            type="button"
+            disabled={readOnly || busy}
+            onClick={() =>
+              resolveInventoryDrift(
+                skill.id,
+                installation.agent,
+                action === "reapply_configuration" ? "reapply" : "forget",
+              )
+            }
+          >
+            {action === "reapply_configuration"
+              ? copy.reapplyConfiguration
+              : copy.forgetConfiguration}
+          </button>
+        );
+      case "restore":
+        return (
+          <button
+            className="text-button destructive-text"
+            type="button"
+            disabled={readOnly}
+            onClick={() =>
+              setRevisionAction({
+                mode: "restore",
+                skill,
+                agent: installation.agent,
+              })
+            }
+          >
+            {copy.restoreAction}
+          </button>
+        );
+      case "detach":
+      case "uninstall":
+      case "forget_installation": {
+        const mode = action === "forget_installation" ? "forget" : action;
+        return (
+          <button
+            className={`text-button ${action === "detach" ? "" : "destructive-text"}`}
+            type="button"
+            disabled={readOnly}
+            onClick={() =>
+              setLifecycleAction({ mode, skill, agent: installation.agent })
+            }
+          >
+            {action === "detach"
+              ? copy.detachAction
+              : action === "uninstall"
+                ? copy.uninstallAction
+                : copy.forgetInstallationAction}
+          </button>
+        );
+      }
+      default:
+        return unreachable(action);
+    }
+  }
+
+  function packageActionButton(
+    skill: ManagedSkillPackage,
+    action: ManagedPackageAction,
+  ) {
+    switch (action) {
+      case "install":
+        return (
+          <button
+            className="text-button"
+            type="button"
+            disabled={readOnly}
+            onClick={() => setInstallSkill(skill)}
+          >
+            {copy.installAction}
+          </button>
+        );
+      case "replace":
+        return (
+          <button
+            className="text-button"
+            type="button"
+            disabled={readOnly}
+            onClick={() => setRevisionAction({ mode: "replace", skill })}
+          >
+            {copy.replaceAction}
+          </button>
+        );
+      case "check_update":
+        return (
+          <button
+            className="text-button"
+            type="button"
+            disabled={readOnly}
+            onClick={() => setGitUpdateSkill(skill)}
+          >
+            {copy.checkUpdateAction}
+          </button>
+        );
+      case "rollback":
+        return (
+          <button
+            className="text-button"
+            type="button"
+            disabled={readOnly}
+            onClick={() => setRevisionAction({ mode: "rollback", skill })}
+          >
+            {copy.rollbackAction}
+          </button>
+        );
+      case "export":
+        return (
+          <button
+            className="text-button"
+            type="button"
+            disabled={readOnly}
+            onClick={() => setRevisionAction({ mode: "export", skill })}
+          >
+            {copy.exportAction}
+          </button>
+        );
+      case "remove":
+        return (
+          <button
+            className="text-button destructive-text"
+            type="button"
+            disabled={readOnly}
+            onClick={() => setLifecycleAction({ mode: "remove", skill })}
+          >
+            {copy.removeLibraryAction}
+          </button>
+        );
+      default:
+        return unreachable(action);
+    }
   }
 
   function closeStagedDialog(close: () => void) {
@@ -378,156 +606,133 @@ export default function App() {
           visibleExternal.length > 0 ||
           visibleAttention.length > 0 ? (
           <ul className="skill-list">
-            {visibleManaged.map((skill) => (
-              <li className="skill-row" key={skill.id}>
-                <div>
-                  <h3>{skill.name}</h3>
-                  <p>
-                    {skill.installations.length > 0
-                      ? `${copy.installedTo}: ${skill.installations
-                          .map((installation) => installation.agent)
-                          .join(", ")}`
-                      : copy.libraryOnly}
-                  </p>
-                </div>
-                <div className="skill-meta">
-                  <span>{skill.source.type.replace("_", " ")}</span>
-                  <span>{copy.managed}</span>
-                  {skill.installations.map((installation) => (
-                    <span
-                      className="installation-actions"
-                      key={installation.agent}
-                    >
-                      <button
-                        className="text-button"
-                        type="button"
-                        disabled={
-                          readOnly ||
-                          configurationBusy ===
-                            `${skill.id}:${installation.agent}`
-                        }
-                        onClick={() =>
-                          toggleConfiguration(
-                            skill.id,
-                            installation.agent,
-                            !installation.enabled,
-                          )
-                        }
-                      >
-                        {configurationBusy ===
-                        `${skill.id}:${installation.agent}`
-                          ? copy.saving
-                          : `${installation.enabled ? copy.disable : copy.enable} ${installation.agent}`}
-                      </button>
-                      <button
-                        className="text-button"
-                        type="button"
-                        disabled={readOnly}
-                        onClick={() =>
-                          setLifecycleAction({
-                            mode: "detach",
-                            skill,
-                            agent: installation.agent,
-                          })
-                        }
-                      >
-                        {copy.detachAction}
-                      </button>
-                      <button
-                        className="text-button destructive-text"
-                        type="button"
-                        disabled={readOnly}
-                        onClick={() =>
-                          setLifecycleAction({
-                            mode: "uninstall",
-                            skill,
-                            agent: installation.agent,
-                          })
-                        }
-                      >
-                        {copy.uninstallAction}
-                      </button>
-                      <button
-                        className="text-button destructive-text"
-                        type="button"
-                        disabled={readOnly}
-                        onClick={() =>
-                          setRevisionAction({
-                            mode: "restore",
-                            skill,
-                            agent: installation.agent,
-                          })
-                        }
-                      >
-                        {copy.restoreAction}
-                      </button>
-                    </span>
-                  ))}
-                  <button
-                    className="text-button"
-                    type="button"
-                    disabled={readOnly || skill.installations.length === 2}
-                    onClick={() => setInstallSkill(skill)}
-                  >
-                    {copy.installAction}
-                  </button>
-                  {skill.source.type === "local_snapshot" && (
-                    <button
-                      className="text-button"
-                      type="button"
-                      disabled={readOnly}
-                      onClick={() =>
-                        setRevisionAction({ mode: "replace", skill })
-                      }
-                    >
-                      {copy.replaceAction}
-                    </button>
-                  )}
-                  {skill.source.type === "git" && (
-                    <button
-                      className="text-button"
-                      type="button"
-                      disabled={readOnly}
-                      onClick={() => setGitUpdateSkill(skill)}
-                    >
-                      {copy.checkUpdateAction}
-                    </button>
-                  )}
-                  <button
-                    className="text-button"
-                    type="button"
-                    disabled={readOnly}
-                    onClick={() => setRevisionAction({ mode: "export", skill })}
-                  >
-                    {copy.exportAction}
-                  </button>
-                  {skill.previousRevision && (
-                    <button
-                      className="text-button"
-                      type="button"
-                      disabled={readOnly}
-                      onClick={() =>
-                        setRevisionAction({ mode: "rollback", skill })
-                      }
-                    >
-                      {copy.rollbackAction}
-                    </button>
-                  )}
-                  {skill.installations.length === 0 && (
-                    <button
-                      className="text-button destructive-text"
-                      type="button"
-                      disabled={readOnly}
-                      onClick={() =>
-                        setLifecycleAction({ mode: "remove", skill })
-                      }
-                    >
-                      {copy.removeLibraryAction}
-                    </button>
-                  )}
-                </div>
-              </li>
-            ))}
+            {visibleManaged.map((skill) => {
+              const packageReconciliation = packageReconciliations.get(
+                skill.id,
+              );
+              const reconciliations = skill.installations
+                .map((installation) =>
+                  managedStatuses.get(`${skill.id}:${installation.agent}`),
+                )
+                .filter(
+                  (entry): entry is ManagedInstallationReconciliation =>
+                    entry !== undefined,
+                );
+              const hasAbnormal = reconciliations.some(
+                (entry) => entry.status !== "healthy",
+              );
+              return (
+                <li className="skill-row" key={skill.id}>
+                  <div>
+                    <h3>{skill.name}</h3>
+                    <p>
+                      {skill.installations.length > 0
+                        ? `${copy.installedTo}: ${skill.installations
+                            .map((installation) => installation.agent)
+                            .join(", ")}`
+                        : copy.libraryOnly}
+                    </p>
+                    {packageReconciliation?.libraryDiagnostic && (
+                      <p className="skill-description">
+                        {inventoryDiagnosticMessage(
+                          packageReconciliation.libraryDiagnostic,
+                          skill.libraryPath,
+                          copy.errors,
+                        )}
+                      </p>
+                    )}
+                    {hasAbnormal && (
+                      <p className="filter-scope-note">
+                        {copy.packageActionsFrozen}
+                      </p>
+                    )}
+                  </div>
+                  <div className="skill-meta">
+                    <span>{skill.source.type.replace("_", " ")}</span>
+                    <span>{copy.managed}</span>
+                    {skill.installations.map((installation) => {
+                      const reconciliation = managedStatuses.get(
+                        `${skill.id}:${installation.agent}`,
+                      );
+                      if (!reconciliation) return null;
+                      return (
+                        <div
+                          className="installation-actions"
+                          key={installation.agent}
+                        >
+                          <div className="skill-title-line">
+                            <span>{installation.agent}</span>
+                            <span className="status-badge">
+                              {managedStatusLabel(reconciliation.status, copy)}
+                            </span>
+                          </div>
+                          <p className="installation-path">
+                            {reconciliation.evidence.logicalPath}
+                          </p>
+                          {reconciliation.diagnostic &&
+                            !packageReconciliation?.libraryDiagnostic && (
+                              <p className="skill-description">
+                                {inventoryDiagnosticMessage(
+                                  reconciliation.diagnostic,
+                                  reconciliation.evidence.logicalPath,
+                                  copy.errors,
+                                )}
+                              </p>
+                            )}
+                          {reconciliation.evidence.expectedTarget && (
+                            <p className="installation-path">
+                              {copy.expectedTarget}:{" "}
+                              {reconciliation.evidence.expectedTarget}
+                            </p>
+                          )}
+                          {reconciliation.evidence.observedTarget && (
+                            <p className="installation-path">
+                              {copy.observedTarget}:{" "}
+                              {reconciliation.evidence.observedTarget}
+                            </p>
+                          )}
+                          {reconciliation.evidence.observedFingerprint && (
+                            <p className="installation-path">
+                              {copy.expectedFingerprint}:{" "}
+                              {shortFingerprint(
+                                reconciliation.evidence.libraryFingerprint,
+                              )}{" "}
+                              · {copy.observedFingerprint}:{" "}
+                              {shortFingerprint(
+                                reconciliation.evidence.observedFingerprint,
+                              )}
+                            </p>
+                          )}
+                          {reconciliation.evidence.configurationProvenance
+                            .owner === "external" && (
+                            <p>{copy.externallyControlledConfiguration}</p>
+                          )}
+                          {reconciliation.evidence.deferredChecks && (
+                            <p>{copy.deferredChecks}</p>
+                          )}
+                          <span>
+                            {reconciliation.availableActions.map((action) => (
+                              <span key={action}>
+                                {installationActionButton(
+                                  skill,
+                                  installation,
+                                  action,
+                                )}
+                              </span>
+                            ))}
+                          </span>
+                        </div>
+                      );
+                    })}
+                    {packageReconciliation?.availableActions.map((action) => (
+                      <span key={action}>
+                        {packageActionButton(skill, action)}
+                      </span>
+                    ))}
+                  </div>
+                </li>
+              );
+            })}
             {visibleExternal.map((installation) => (
               <li
                 className="skill-row"

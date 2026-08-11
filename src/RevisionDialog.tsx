@@ -47,6 +47,7 @@ export default function RevisionDialog({
   const [plan, setPlan] = useState<Plan | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(automatic);
+  const [confirmCreateRoot, setConfirmCreateRoot] = useState(false);
   const dialogRef = useRef<HTMLDialogElement>(null);
 
   useEffect(() => {
@@ -111,7 +112,11 @@ export default function RevisionDialog({
         ? commitReplaceLocalRevision(plan.id)
         : action.mode === "rollback"
           ? commitRollbackRevision(plan.id)
-          : commitRestoreInstallation(plan.id, true);
+          : commitRestoreInstallation(
+              plan.id,
+              "willOverwrite" in plan && plan.willOverwrite,
+              confirmCreateRoot,
+            );
     void request
       .then(() => {
         onCommitted(copy.restartFallback);
@@ -217,7 +222,21 @@ export default function RevisionDialog({
                 </div>
               </dl>
             )}
-            {"willOverwrite" in plan && <p>{copy.restoreOverwriteWarning}</p>}
+            {"willOverwrite" in plan && plan.willOverwrite && (
+              <p>{copy.restoreOverwriteWarning}</p>
+            )}
+            {"createsAgentRoot" in plan && plan.createsAgentRoot && (
+              <label className="checkbox-row">
+                <input
+                  type="checkbox"
+                  checked={confirmCreateRoot}
+                  onChange={(event) =>
+                    setConfirmCreateRoot(event.target.checked)
+                  }
+                />
+                <span>{copy.restoreCreateRootWarning}</span>
+              </label>
+            )}
             {"destination" in plan && <p>{plan.destination}</p>}
           </div>
         )}
@@ -235,7 +254,12 @@ export default function RevisionDialog({
             <button
               className={action.mode === "restore" ? "danger" : "primary"}
               type="button"
-              disabled={busy}
+              disabled={
+                busy ||
+                ("createsAgentRoot" in plan &&
+                  plan.createsAgentRoot &&
+                  !confirmCreateRoot)
+              }
               onClick={commit}
             >
               {busy ? copy.saving : title}

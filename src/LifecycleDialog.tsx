@@ -2,13 +2,16 @@ import { useEffect, useRef, useState } from "react";
 import {
   commandErrorMessage,
   commitDetach,
+  commitForgetInstallation,
   commitRemoveLibrary,
   commitUninstall,
   planDetach,
+  planForgetInstallation,
   planRemoveLibrary,
   planUninstall,
   type Agent,
   type DetachPlan,
+  type ForgetInstallationPlan,
   type ManagedSkillPackage,
   type RemoveLibraryPlan,
   type UninstallPlan,
@@ -16,7 +19,11 @@ import {
 import type { Messages } from "./i18n";
 
 export type LifecycleAction =
-  | { mode: "uninstall" | "detach"; skill: ManagedSkillPackage; agent: Agent }
+  | {
+      mode: "uninstall" | "detach" | "forget";
+      skill: ManagedSkillPackage;
+      agent: Agent;
+    }
   | { mode: "remove"; skill: ManagedSkillPackage };
 
 interface LifecycleDialogProps {
@@ -26,7 +33,8 @@ interface LifecycleDialogProps {
   onCommitted: (message: string) => void;
 }
 
-type Plan = UninstallPlan | DetachPlan | RemoveLibraryPlan;
+type Plan =
+  UninstallPlan | DetachPlan | ForgetInstallationPlan | RemoveLibraryPlan;
 
 export default function LifecycleDialog({
   action,
@@ -46,9 +54,11 @@ export default function LifecycleDialog({
     const request =
       action.mode === "remove"
         ? planRemoveLibrary(action.skill.id)
-        : action.mode === "detach"
-          ? planDetach(action.skill.id, action.agent)
-          : planUninstall(action.skill.id, action.agent);
+        : action.mode === "forget"
+          ? planForgetInstallation(action.skill.id, action.agent)
+          : action.mode === "detach"
+            ? planDetach(action.skill.id, action.agent)
+            : planUninstall(action.skill.id, action.agent);
     void request
       .then(setPlan)
       .catch((failure: unknown) =>
@@ -67,9 +77,11 @@ export default function LifecycleDialog({
     const request =
       action.mode === "remove"
         ? commitRemoveLibrary(plan.id, confirmation)
-        : action.mode === "detach"
-          ? commitDetach(plan.id)
-          : commitUninstall(plan.id);
+        : action.mode === "forget"
+          ? commitForgetInstallation(plan.id)
+          : action.mode === "detach"
+            ? commitDetach(plan.id)
+            : commitUninstall(plan.id);
     void request
       .then(() => {
         onCommitted(copy.restartFallback);
@@ -86,9 +98,11 @@ export default function LifecycleDialog({
   const title =
     action.mode === "remove"
       ? copy.removeLibraryTitle
-      : action.mode === "detach"
-        ? copy.detachTitle
-        : copy.uninstallTitle;
+      : action.mode === "forget"
+        ? copy.forgetInstallationTitle
+        : action.mode === "detach"
+          ? copy.detachTitle
+          : copy.uninstallTitle;
 
   return (
     <dialog
@@ -119,6 +133,7 @@ export default function LifecycleDialog({
             <p className="section-kicker">{copy.changePreview}</p>
             <p>{"logicalPath" in plan ? plan.logicalPath : plan.libraryPath}</p>
             {action.mode === "detach" && <p>{copy.detachKeepsFiles}</p>}
+            {action.mode === "forget" && <p>{copy.forgetInstallationNote}</p>}
             {action.mode === "uninstall" && <p>{copy.uninstallOwnedOnly}</p>}
             {action.mode === "remove" && "bytes" in plan && (
               <>
@@ -130,6 +145,9 @@ export default function LifecycleDialog({
                 </p>
                 {plan.localSnapshotLastCopyWarning && (
                   <p>{copy.localSnapshotWarning}</p>
+                )}
+                {plan.unrecoverableContentWarning && (
+                  <p>{copy.unrecoverableContentWarning}</p>
                 )}
               </>
             )}

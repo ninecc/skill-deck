@@ -189,3 +189,128 @@ switch (entry.kind) {
     renderAttention(entry);
 }
 ```
+
+## Scenario: Managed Installation reconciliation and recovery
+
+### 1. Scope / Trigger
+
+Apply this contract whenever Managed Installation inventory, recovery actions,
+or package mutation eligibility changes. Reconciliation is read-only evidence;
+only plan/commit commands authorize writes.
+
+### 2. Signatures
+
+```text
+inventory() -> {
+  managedInstallationStatuses: ManagedInstallationReconciliation[],
+  managedPackageReconciliations: ManagedPackageReconciliation[], ...
+}
+plan_restore_installation(packageId, agent) -> {
+  operation: recreate|replace, rootExists, willOverwrite, ...
+}
+commit_restore_installation(planId, confirmOverwrite, confirmCreateRoot)
+plan_forget_installation(packageId, agent) -> ForgetInstallationPlan
+commit_forget_installation(planId) -> LifecycleResult
+```
+
+`ManagedInstallationReconciliation` carries `packageId`, `agent`, primary
+`status`, structured `diagnostic`, typed expected/observed `evidence`, and a
+closed `availableActions` set. `ManagedPackageReconciliation` carries
+`packageId`, one optional `libraryDiagnostic`, and package actions.
+
+### 3. Contracts
+
+Writable inventory derives one `managedInstallationStatuses` entry per
+package-id/Agent pair and one `managedPackageReconciliations` entry per package.
+The primary status precedence is `broken`, `missing`, `retargeted`, `drifted`,
+`configuration_drift`, then `healthy`. Rust returns typed expected/observed
+evidence and the closed `availableActions` sets; React renders them without
+reconstructing ownership policy. A Managed Library failure is diagnosed once at
+package level and makes every affected Installation `broken`, including when
+the package has no Installations.
+
+- Restore previews declare `operation: recreate|replace`; only `replace`
+  requires overwrite confirmation. Recreating a missing Agent root requires a
+  separate explicit confirmation and preserves the recorded deployment mode.
+- Drifted, structurally valid Copy Fallback content may be detached without
+  changing its bytes or configuration.
+- `plan_forget_installation` / `commit_forget_installation` is available only
+  for `missing|retargeted|broken`. Commit reruns reconciliation and removes only
+  the persisted Installation record; a changed status invalidates the plan.
+- A zero-Installation package with an absent or real non-link app-owned package
+  root may be removed even when its current revision is invalid. Unknown or link
+  topology remains read-only, and exact-name confirmation remains mandatory.
+- Any non-healthy Installation removes Install, Update, Replace, and Roll Back
+  from package `availableActions` until repair or explicit Forget completes.
+
+Inventory evidence is explanatory only. Every mutation rereads state,
+filesystem topology, Managed Library content, and configuration provenance at
+commit time. Diagnostics exports omit reconciliation targets and full
+fingerprints.
+
+### 4. Validation & Error Matrix
+
+| Condition | Result |
+| --- | --- |
+| Managed Library missing/invalid/drifted | Package diagnostic; affected Installations `broken` |
+| Logical path absent | `missing`; Restore/Forget according to library health |
+| Link resolves away from recorded/current library target | `retargeted`; Forget only |
+| Valid Copy Fallback fingerprint mismatch | `drifted`; Restore or Detach |
+| Skill Deck-owned config shape/value changed | `configuration_drift`; Reapply or Forget Configuration |
+| Deployment shape invalid, link unresolved, or installed structure invalid | `broken`; Forget only |
+| Restore root disappears after preview | stale/invalid plan; never create without confirmation |
+| Forget status becomes ineligible before commit | stale/invalid plan; preserve state and filesystem |
+| Any Installation non-healthy during Install/Update/Replace/Roll Back plan or commit | reject with the reconciliation diagnostic |
+| Broken package root missing or real non-link app-owned directory | exact-name Remove allowed at zero Installations |
+| Broken package root link/unknown topology or invalid package name | reject without traversal or deletion |
+
+### 5. Good / Base / Bad Cases
+
+- Good: inventory reports a retargeted link with expected/observed targets and
+  only `forget_installation`; commit reruns reconciliation before dropping the
+  state record and leaves link, target, and configuration bytes unchanged.
+- Base: a healthy Installation exposes ordinary lifecycle actions but not
+  Restore; externally controlled configuration remains healthy while config
+  mutation actions stay absent.
+- Bad: React derives actions from status, Restore silently creates a vanished
+  Agent root, or a stale/direct package command bypasses the non-healthy freeze.
+
+### 6. Tests Required
+
+- Rust classification tests cover all six statuses, precedence, Copy Fallback
+  `resolvedTarget`, package-level diagnostic deduplication, and zero-Installation
+  library failure.
+- Restore tests cover recreate/replace, overwrite confirmation, explicit root
+  creation, and a root disappearing after preview.
+- Forget tests assert eligible statuses, stale-status rejection, state-only
+  removal, and byte-preservation of link, target, and configuration.
+- Package mutation tests call plan and commit directly and prove non-healthy
+  Installations cannot bypass Install/Update/Replace/Roll Back freezes.
+- Broken removal tests cover safe real root, absent root without staging
+  creation, unsafe topology, exact-name confirmation, and name traversal.
+- React tests assert exhaustive backend action rendering, one package-level
+  library diagnostic, evidence disclosure, freeze reasons, and both locales.
+- Diagnostics tests assert resolved targets and full fingerprints remain absent.
+
+### 7. Wrong vs Correct
+
+Wrong:
+
+```ts
+if (entry.status === "missing") actions.push("restore");
+await commitRestoreInstallation(plan.id, false, true);
+```
+
+Correct:
+
+```ts
+for (const action of entry.availableActions) renderManagedAction(action);
+await commitRestoreInstallation(
+  plan.id,
+  plan.operation === "replace" && confirmOverwrite,
+  !plan.rootExists && confirmCreateRoot,
+);
+```
+
+The backend action set explains current eligibility; commit-time reconciliation
+remains the authority when state changes after inventory or preview.

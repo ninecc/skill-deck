@@ -424,6 +424,8 @@ mod tests {
                 },
             }],
             managed_packages: Vec::new(),
+            managed_installation_statuses: Vec::new(),
+            managed_package_reconciliations: Vec::new(),
         };
         let report = build_report(temp.path(), &destination, inventory).unwrap();
         let bytes = serde_json::to_vec_pretty(&report).unwrap();
@@ -469,6 +471,8 @@ mod tests {
             }],
             attention_entries: Vec::new(),
             managed_packages: Vec::new(),
+            managed_installation_statuses: Vec::new(),
+            managed_package_reconciliations: Vec::new(),
         };
 
         let report = build_report(

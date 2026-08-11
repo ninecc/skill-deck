@@ -10,7 +10,7 @@ use serde::Serialize;
 use crate::{
     configuration,
     install::RESTART_MESSAGE,
-    inventory::Agent,
+    inventory::{self, Agent, ManagedInstallationStatus},
     library::{copy_directory, next_id, remove_directory},
     skill::{self, SkillError, SkillErrorCode},
     state::{
@@ -43,6 +43,16 @@ pub struct DetachPlan {
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
+pub struct ForgetInstallationPlan {
+    pub id: String,
+    pub package_id: String,
+    pub agent: Agent,
+    pub logical_path: PathBuf,
+    pub status: ManagedInstallationStatus,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
 pub struct RemoveLibraryPlan {
     pub id: String,
     pub package_id: String,
@@ -52,8 +62,10 @@ pub struct RemoveLibraryPlan {
     pub previous_revision: Option<InstalledRevision>,
     pub library_path: PathBuf,
     pub bytes: u64,
+    pub root_existed: bool,
     pub local_snapshot_last_copy_warning: bool,
     pub export_current_path: PathBuf,
+    pub unrecoverable_content_warning: bool,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
@@ -67,6 +79,7 @@ pub struct LifecycleResult {
 enum PendingPlan {
     Uninstall(UninstallPlan),
     Detach(DetachPlan),
+    Forget(ForgetInstallationPlan),
     Remove(Box<RemoveLibraryPlan>),
 }
 
@@ -178,6 +191,63 @@ impl LifecycleManager {
         })
     }
 
+    pub fn plan_forget_installation(
+        &self,
+        app_data: &Path,
+        package_id: &str,
+        agent: Agent,
+    ) -> Result<ForgetInstallationPlan, SkillError> {
+        let _mutation = self.mutation.try_lock().map_err(|_| busy_error())?;
+        let state = load_writable_state(app_data)?;
+        let (package, installation) = find_installation(&state, package_id, agent)?;
+        let reconciliation = inventory::reconcile_installation(package, installation);
+        ensure_forgettable(reconciliation.status, &installation.logical_path)?;
+        let plan = ForgetInstallationPlan {
+            id: next_id(),
+            package_id: package_id.to_owned(),
+            agent,
+            logical_path: installation.logical_path.clone(),
+            status: reconciliation.status,
+        };
+        self.insert(plan.id.clone(), PendingPlan::Forget(plan.clone()))?;
+        Ok(plan)
+    }
+
+    pub fn commit_forget_installation(
+        &self,
+        app_data: &Path,
+        plan_id: &str,
+    ) -> Result<LifecycleResult, SkillError> {
+        let _mutation = self.mutation.try_lock().map_err(|_| busy_error())?;
+        let PendingPlan::Forget(plan) = self.take(plan_id)? else {
+            return Err(invalid_plan("Forget Installation"));
+        };
+        let mut state = load_writable_state(app_data)?;
+        let (package_index, installation_index) = indexes(&state, &plan.package_id, plan.agent)?;
+        let package = &state.packages[package_index];
+        let installation = &package.installations[installation_index];
+        if installation.logical_path != plan.logical_path {
+            return Err(stale_plan("Forget Installation"));
+        }
+        let reconciliation = inventory::reconcile_installation(package, installation);
+        if !matches!(
+            reconciliation.status,
+            ManagedInstallationStatus::Missing
+                | ManagedInstallationStatus::Retargeted
+                | ManagedInstallationStatus::Broken
+        ) {
+            return Err(stale_plan("Forget Installation"));
+        }
+        state.packages[package_index]
+            .installations
+            .remove(installation_index);
+        StateStore::new(app_data.to_path_buf()).save(&state)?;
+        Ok(LifecycleResult {
+            package: Some(state.packages[package_index].clone()),
+            restart_message: RESTART_MESSAGE,
+        })
+    }
+
     pub fn plan_detach(
         &self,
         app_data: &Path,
@@ -187,7 +257,7 @@ impl LifecycleManager {
         let _mutation = self.mutation.try_lock().map_err(|_| busy_error())?;
         let state = load_writable_state(app_data)?;
         let (package, installation) = find_installation(&state, package_id, agent)?;
-        validate_installation(package, installation)?;
+        validate_detachable(package, installation)?;
         let plan = DetachPlan {
             id: next_id(),
             package_id: package_id.to_owned(),
@@ -219,7 +289,7 @@ impl LifecycleManager {
             installation,
             "Detach",
         )?;
-        validate_installation(package, installation)?;
+        validate_detachable(package, installation)?;
 
         let original_state = state.clone();
         let linked = installation.deployment_mode != DeploymentMode::CopyFallback;
@@ -275,8 +345,9 @@ impl LifecycleManager {
         let state = load_writable_state(app_data)?;
         let package = find_package(&state, package_id)?;
         ensure_removable(app_data, package)?;
-        validate_library(package)?;
         let package_root = package_root(app_data, package)?;
+        ensure_safe_package_root(&package_root)?;
+        let root_exists = package_root.exists();
         let plan = RemoveLibraryPlan {
             id: next_id(),
             package_id: package_id.to_owned(),
@@ -285,9 +356,15 @@ impl LifecycleManager {
             current_revision: package.installed_revision.clone(),
             previous_revision: package.previous_revision.clone(),
             library_path: package_root.clone(),
-            bytes: directory_bytes(&package_root)?,
+            bytes: if root_exists {
+                directory_bytes(&package_root)?
+            } else {
+                0
+            },
+            root_existed: root_exists,
             local_snapshot_last_copy_warning: package.source == SkillSource::LocalSnapshot,
             export_current_path: package.library_path.clone(),
+            unrecoverable_content_warning: validate_library(package).is_err(),
         };
         self.insert(plan.id.clone(), PendingPlan::Remove(Box::new(plan.clone())))?;
         Ok(plan)
@@ -318,13 +395,23 @@ impl LifecycleManager {
             .ok_or_else(|| invalid_plan("Remove from Library"))?;
         let package = &state.packages[package_index];
         ensure_removable(app_data, package)?;
-        validate_library(package)?;
         let root = package_root(app_data, package)?;
+        ensure_safe_package_root(&root)?;
+        let root_exists = root.exists();
+        let bytes = if root_exists {
+            directory_bytes(&root)?
+        } else {
+            0
+        };
+        let unrecoverable_content_warning = validate_library(package).is_err();
         if root != plan.library_path
             || package.name != plan.name
             || package.source != plan.source
             || package.installed_revision != plan.current_revision
             || package.previous_revision != plan.previous_revision
+            || root_exists != plan.root_existed
+            || bytes != plan.bytes
+            || unrecoverable_content_warning != plan.unrecoverable_content_warning
         {
             return Err(stale_plan("Remove from Library"));
         }
@@ -332,19 +419,25 @@ impl LifecycleManager {
         let original_state = state.clone();
         let backup = app_data.join("staging").join(format!("remove-{plan_id}"));
         ensure_absent(&backup)?;
-        if let Some(parent) = backup.parent() {
-            fs::create_dir_all(parent).map_err(|error| SkillError::io(parent, error))?;
+        if root_exists {
+            if let Some(parent) = backup.parent() {
+                fs::create_dir_all(parent).map_err(|error| SkillError::io(parent, error))?;
+            }
+            fs::rename(&root, &backup).map_err(|error| SkillError::io(&root, error))?;
         }
-        fs::rename(&root, &backup).map_err(|error| SkillError::io(&root, error))?;
         state.packages.remove(package_index);
         if let Err(error) = StateStore::new(app_data.to_path_buf()).save(&state) {
-            restore_entry(&backup, &root)?;
+            if root_exists {
+                restore_entry(&backup, &root)?;
+            }
             return Err(error);
         }
-        if let Err(error) = remove_entry(&backup) {
-            StateStore::new(app_data.to_path_buf()).save(&original_state)?;
-            restore_entry(&backup, &root)?;
-            return Err(error);
+        if root_exists {
+            if let Err(error) = remove_entry(&backup) {
+                StateStore::new(app_data.to_path_buf()).save(&original_state)?;
+                restore_entry(&backup, &root)?;
+                return Err(error);
+            }
         }
         Ok(LifecycleResult {
             package: None,
@@ -366,6 +459,41 @@ impl LifecycleManager {
             .map_err(|_| lock_error())?
             .remove(id)
             .ok_or_else(|| invalid_plan("Lifecycle"))
+    }
+}
+
+fn validate_detachable(
+    package: &ManagedSkillPackage,
+    installation: &Installation,
+) -> Result<(), SkillError> {
+    let reconciliation = inventory::reconcile_installation(package, installation);
+    if matches!(
+        reconciliation.status,
+        ManagedInstallationStatus::Healthy | ManagedInstallationStatus::Drifted
+    ) {
+        Ok(())
+    } else {
+        Err(reconciliation
+            .diagnostic
+            .map(|diagnostic| SkillError::new(diagnostic.code, diagnostic.message, diagnostic.path))
+            .unwrap_or_else(|| unknown_topology(&installation.logical_path)))
+    }
+}
+
+fn ensure_forgettable(status: ManagedInstallationStatus, path: &Path) -> Result<(), SkillError> {
+    if matches!(
+        status,
+        ManagedInstallationStatus::Missing
+            | ManagedInstallationStatus::Retargeted
+            | ManagedInstallationStatus::Broken
+    ) {
+        Ok(())
+    } else {
+        Err(SkillError::new(
+            SkillErrorCode::Conflict,
+            "Forget Installation is available only for missing, retargeted, or broken managed installations",
+            Some(path.to_path_buf()),
+        ))
     }
 }
 
@@ -525,6 +653,13 @@ fn ensure_removable(app_data: &Path, package: &ManagedSkillPackage) -> Result<()
 }
 
 fn package_root(app_data: &Path, package: &ManagedSkillPackage) -> Result<PathBuf, SkillError> {
+    if !skill::valid_name(&package.name) {
+        return Err(SkillError::new(
+            SkillErrorCode::InvalidMetadata,
+            "Managed Skill Package name is invalid",
+            Some(package.library_path.clone()),
+        ));
+    }
     let expected = app_data.join("library").join(&package.name);
     if package.library_path != expected.join("current") {
         return Err(SkillError::new(
@@ -534,6 +669,15 @@ fn package_root(app_data: &Path, package: &ManagedSkillPackage) -> Result<PathBu
         ));
     }
     Ok(expected)
+}
+
+fn ensure_safe_package_root(root: &Path) -> Result<(), SkillError> {
+    match fs::symlink_metadata(root) {
+        Err(error) if error.kind() == io::ErrorKind::NotFound => Ok(()),
+        Err(error) => Err(SkillError::io(root, error)),
+        Ok(metadata) if metadata.is_dir() && !metadata.file_type().is_symlink() => Ok(()),
+        Ok(_) => Err(unknown_topology(root)),
+    }
 }
 
 fn directory_bytes(path: &Path) -> Result<u64, SkillError> {
@@ -780,7 +924,7 @@ mod tests {
 
     #[cfg(unix)]
     #[test]
-    fn copy_drift_blocks_uninstall_and_detach() {
+    fn copy_drift_blocks_uninstall_but_can_detach_without_touching_content() {
         let fixture = fixture(DeploymentMode::CopyFallback, ConfigurationProvenance::None);
         fs::write(fixture.logical.join("changed.txt"), "external edit").unwrap();
         let manager = LifecycleManager::default();
@@ -792,14 +936,56 @@ mod tests {
                 .code,
             SkillErrorCode::ContentDrift
         );
+        let plan = manager
+            .plan_detach(&fixture.app_data, &fixture.package.id, Agent::Claude)
+            .unwrap();
+        let result = manager.commit_detach(&fixture.app_data, &plan.id).unwrap();
+        assert!(fixture.logical.join("changed.txt").is_file());
+        assert!(result.package.unwrap().installations.is_empty());
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn forget_missing_installation_changes_only_state() {
+        let fixture = fixture(DeploymentMode::Symlink, ConfigurationProvenance::None);
+        fs::remove_file(&fixture.logical).unwrap();
+        let library_bytes = fs::read(fixture.package.library_path.join("SKILL.md")).unwrap();
+        let manager = LifecycleManager::default();
+        let plan = manager
+            .plan_forget_installation(&fixture.app_data, &fixture.package.id, Agent::Claude)
+            .unwrap();
+        let result = manager
+            .commit_forget_installation(&fixture.app_data, &plan.id)
+            .unwrap();
+
+        assert!(result.package.unwrap().installations.is_empty());
+        assert_eq!(
+            fs::read(fixture.package.library_path.join("SKILL.md")).unwrap(),
+            library_bytes
+        );
+        assert!(!fixture.logical.exists());
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn forget_plan_is_stale_after_missing_installation_is_restored() {
+        use std::os::unix::fs::symlink;
+
+        let fixture = fixture(DeploymentMode::Symlink, ConfigurationProvenance::None);
+        fs::remove_file(&fixture.logical).unwrap();
+        let manager = LifecycleManager::default();
+        let plan = manager
+            .plan_forget_installation(&fixture.app_data, &fixture.package.id, Agent::Claude)
+            .unwrap();
+        symlink(&fixture.package.library_path, &fixture.logical).unwrap();
+
         assert_eq!(
             manager
-                .plan_detach(&fixture.app_data, &fixture.package.id, Agent::Claude)
+                .commit_forget_installation(&fixture.app_data, &plan.id)
                 .unwrap_err()
                 .code,
-            SkillErrorCode::ContentDrift
+            SkillErrorCode::InvalidPlan
         );
-        assert!(fixture.logical.join("changed.txt").is_file());
     }
 
     #[cfg(unix)]
@@ -822,6 +1008,49 @@ mod tests {
             fixture.logical.canonicalize().unwrap(),
             external.canonicalize().unwrap()
         );
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn forgetting_retargeted_installation_preserves_link_target_and_configuration() {
+        use std::os::unix::fs::symlink;
+
+        let mut fixture = fixture(DeploymentMode::Symlink, ConfigurationProvenance::None);
+        let config = fixture._temp.path().join("settings.json");
+        let config_bytes = br#"{"skillOverrides":{"alpha-skill":"off"}}"#;
+        fs::write(&config, config_bytes).unwrap();
+        fixture.package.installations[0].configuration_provenance =
+            ConfigurationProvenance::SkillDeck {
+                path: config.clone(),
+            };
+        StateStore::new(fixture.app_data.clone())
+            .save(&AppState {
+                state_version: 1,
+                packages: vec![fixture.package.clone()],
+            })
+            .unwrap();
+        fs::remove_file(&fixture.logical).unwrap();
+        let external = fixture._temp.path().join("external");
+        fs::create_dir(&external).unwrap();
+        fs::write(external.join("keep.txt"), "keep").unwrap();
+        symlink(&external, &fixture.logical).unwrap();
+        let link_target = fs::read_link(&fixture.logical).unwrap();
+
+        let manager = LifecycleManager::default();
+        let plan = manager
+            .plan_forget_installation(&fixture.app_data, &fixture.package.id, Agent::Claude)
+            .unwrap();
+        let result = manager
+            .commit_forget_installation(&fixture.app_data, &plan.id)
+            .unwrap();
+
+        assert!(result.package.unwrap().installations.is_empty());
+        assert_eq!(fs::read_link(&fixture.logical).unwrap(), link_target);
+        assert_eq!(
+            fs::read_to_string(external.join("keep.txt")).unwrap(),
+            "keep"
+        );
+        assert_eq!(fs::read(config).unwrap(), config_bytes);
     }
 
     #[cfg(unix)]
@@ -859,6 +1088,87 @@ mod tests {
             SkillErrorCode::InvalidPlan
         );
         assert!(fixture.package.library_path.exists());
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn broken_zero_installation_package_can_be_removed_from_safe_owned_root() {
+        let fixture = fixture(DeploymentMode::CopyFallback, ConfigurationProvenance::None);
+        let mut state = StateStore::new(fixture.app_data.clone())
+            .load()
+            .unwrap()
+            .state
+            .unwrap();
+        state.packages[0].installations.clear();
+        StateStore::new(fixture.app_data.clone())
+            .save(&state)
+            .unwrap();
+        fs::remove_file(fixture.package.library_path.join("SKILL.md")).unwrap();
+        let manager = LifecycleManager::default();
+        let plan = manager
+            .plan_remove_library(&fixture.app_data, &fixture.package.id)
+            .unwrap();
+        assert!(plan.unrecoverable_content_warning);
+        manager
+            .commit_remove_library(&fixture.app_data, &plan.id, "alpha-skill")
+            .unwrap();
+        assert!(!fixture.package.library_path.parent().unwrap().exists());
+    }
+
+    #[test]
+    fn removing_an_absent_package_root_changes_only_state() {
+        let fixture = fixture(DeploymentMode::CopyFallback, ConfigurationProvenance::None);
+        let mut state = StateStore::new(fixture.app_data.clone())
+            .load()
+            .unwrap()
+            .state
+            .unwrap();
+        state.packages[0].installations.clear();
+        StateStore::new(fixture.app_data.clone())
+            .save(&state)
+            .unwrap();
+        fs::remove_dir_all(fixture.package.library_path.parent().unwrap()).unwrap();
+        let manager = LifecycleManager::default();
+        let plan = manager
+            .plan_remove_library(&fixture.app_data, &fixture.package.id)
+            .unwrap();
+
+        manager
+            .commit_remove_library(&fixture.app_data, &plan.id, "alpha-skill")
+            .unwrap();
+
+        assert!(StateStore::new(fixture.app_data.clone())
+            .load()
+            .unwrap()
+            .state
+            .unwrap()
+            .packages
+            .is_empty());
+        assert!(!fixture.app_data.join("staging").exists());
+    }
+
+    #[test]
+    fn broken_package_name_cannot_escape_the_owned_library_boundary() {
+        let fixture = fixture(DeploymentMode::CopyFallback, ConfigurationProvenance::None);
+        let mut state = StateStore::new(fixture.app_data.clone())
+            .load()
+            .unwrap()
+            .state
+            .unwrap();
+        state.packages[0].installations.clear();
+        state.packages[0].name = "../outside".to_owned();
+        state.packages[0].library_path = fixture.app_data.join("library/../outside/current");
+        StateStore::new(fixture.app_data.clone())
+            .save(&state)
+            .unwrap();
+
+        assert_eq!(
+            LifecycleManager::default()
+                .plan_remove_library(&fixture.app_data, &fixture.package.id)
+                .unwrap_err()
+                .code,
+            SkillErrorCode::InvalidMetadata
+        );
     }
 
     #[cfg(unix)]

@@ -277,6 +277,25 @@ fn commit_detach(
 }
 
 #[tauri::command]
+fn plan_forget_installation(
+    app: tauri::AppHandle,
+    manager: tauri::State<'_, lifecycle::LifecycleManager>,
+    package_id: String,
+    agent: inventory::Agent,
+) -> Result<lifecycle::ForgetInstallationPlan, skill::SkillError> {
+    manager.plan_forget_installation(&app_data(&app)?, &package_id, agent)
+}
+
+#[tauri::command]
+fn commit_forget_installation(
+    app: tauri::AppHandle,
+    manager: tauri::State<'_, lifecycle::LifecycleManager>,
+    plan_id: String,
+) -> Result<lifecycle::LifecycleResult, skill::SkillError> {
+    manager.commit_forget_installation(&app_data(&app)?, &plan_id)
+}
+
+#[tauri::command]
 fn plan_remove_library(
     app: tauri::AppHandle,
     manager: tauri::State<'_, lifecycle::LifecycleManager>,
@@ -371,8 +390,14 @@ fn commit_restore_installation(
     manager: tauri::State<'_, revision::RevisionManager>,
     plan_id: String,
     confirm_overwrite: bool,
+    confirm_create_root: bool,
 ) -> Result<revision::RevisionResult, skill::SkillError> {
-    manager.commit_restore(&app_data(&app)?, &plan_id, confirm_overwrite)
+    manager.commit_restore_with_root_confirmation(
+        &app_data(&app)?,
+        &plan_id,
+        confirm_overwrite,
+        confirm_create_root,
+    )
 }
 
 #[tauri::command]
@@ -469,6 +494,7 @@ pub fn run() {
             commit_git_update,
             commit_legacy_migration,
             commit_detach,
+            commit_forget_installation,
             commit_remove_library,
             commit_replace_local_revision,
             commit_restore_installation,
@@ -484,6 +510,7 @@ pub fn run() {
             plan_git_import,
             plan_legacy_migration,
             plan_detach,
+            plan_forget_installation,
             plan_remove_library,
             plan_replace_local_revision,
             plan_restore_installation,

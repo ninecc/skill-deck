@@ -1,10 +1,14 @@
-use std::{env, fs, path::PathBuf};
+use std::{env, fs, io, path::PathBuf};
 
 use serde::{Deserialize, Serialize};
 
 use crate::{
+    configuration,
     skill::{self, SkillError, SkillErrorCode, ValidatedSkill},
-    state::{ManagedSkillPackage, StateMode, StateStore},
+    state::{
+        ConfigurationProvenance, DeploymentMode, Installation, ManagedSkillPackage, SkillSource,
+        StateMode, StateStore,
+    },
 };
 
 #[derive(Debug, Clone)]
@@ -78,6 +82,74 @@ pub struct InventoryDiagnostic {
     pub path: Option<PathBuf>,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub enum ManagedInstallationStatus {
+    Healthy,
+    Missing,
+    Retargeted,
+    Drifted,
+    ConfigurationDrift,
+    Broken,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub enum ManagedInstallationAction {
+    EnableConfiguration,
+    DisableConfiguration,
+    ReapplyConfiguration,
+    ForgetConfiguration,
+    Restore,
+    Detach,
+    Uninstall,
+    ForgetInstallation,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub enum ManagedPackageAction {
+    Install,
+    Replace,
+    CheckUpdate,
+    Rollback,
+    Export,
+    Remove,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ReconciliationEvidence {
+    pub logical_path: PathBuf,
+    pub deployment_mode: DeploymentMode,
+    pub expected_target: Option<PathBuf>,
+    pub observed_target: Option<PathBuf>,
+    pub recorded_fingerprint: String,
+    pub library_fingerprint: String,
+    pub observed_fingerprint: Option<String>,
+    pub configuration_provenance: ConfigurationProvenance,
+    pub deferred_checks: bool,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ManagedInstallationReconciliation {
+    pub package_id: String,
+    pub agent: Agent,
+    pub status: ManagedInstallationStatus,
+    pub diagnostic: Option<InventoryDiagnostic>,
+    pub evidence: ReconciliationEvidence,
+    pub available_actions: Vec<ManagedInstallationAction>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ManagedPackageReconciliation {
+    pub package_id: String,
+    pub library_diagnostic: Option<InventoryDiagnostic>,
+    pub available_actions: Vec<ManagedPackageAction>,
+}
+
 impl From<SkillError> for InventoryDiagnostic {
     fn from(error: SkillError) -> Self {
         Self {
@@ -95,6 +167,8 @@ pub struct Inventory {
     pub external_installations: Vec<ExternalInstallation>,
     pub attention_entries: Vec<AttentionEntry>,
     pub managed_packages: Vec<ManagedSkillPackage>,
+    pub managed_installation_statuses: Vec<ManagedInstallationReconciliation>,
+    pub managed_package_reconciliations: Vec<ManagedPackageReconciliation>,
 }
 
 pub fn inventory(app_data: &std::path::Path) -> Result<Inventory, SkillError> {
@@ -110,6 +184,16 @@ pub fn inventory(app_data: &std::path::Path) -> Result<Inventory, SkillError> {
             .state
             .expect("writable state mode contains state")
             .packages;
+        for package in &inventory.managed_packages {
+            let (package_reconciliation, installation_reconciliations) =
+                reconcile_package(app_data, package);
+            inventory
+                .managed_package_reconciliations
+                .push(package_reconciliation);
+            inventory
+                .managed_installation_statuses
+                .extend(installation_reconciliations);
+        }
         inventory.external_installations.retain(|external| {
             !inventory.managed_packages.iter().any(|package| {
                 package.installations.iter().any(|installation| {
@@ -228,7 +312,351 @@ fn inventory_for_roots<const N: usize>(
         external_installations,
         attention_entries,
         managed_packages: Vec::new(),
+        managed_installation_statuses: Vec::new(),
+        managed_package_reconciliations: Vec::new(),
     })
+}
+
+pub(crate) fn reconcile_installation(
+    package: &ManagedSkillPackage,
+    installation: &Installation,
+) -> ManagedInstallationReconciliation {
+    let library_error = validate_library(package).err();
+    reconcile_installation_with_library(package, installation, library_error.as_ref())
+}
+
+fn reconcile_package(
+    app_data: &std::path::Path,
+    package: &ManagedSkillPackage,
+) -> (
+    ManagedPackageReconciliation,
+    Vec<ManagedInstallationReconciliation>,
+) {
+    let library_error = validate_library(package).err();
+    let installations = package
+        .installations
+        .iter()
+        .map(|installation| {
+            reconcile_installation_with_library(package, installation, library_error.as_ref())
+        })
+        .collect::<Vec<_>>();
+    let all_healthy = installations
+        .iter()
+        .all(|entry| entry.status == ManagedInstallationStatus::Healthy);
+    let mut actions = Vec::new();
+    if library_error.is_none() {
+        actions.push(ManagedPackageAction::Export);
+        if all_healthy {
+            if package.installations.len() < 2 {
+                actions.push(ManagedPackageAction::Install);
+            }
+            match package.source {
+                SkillSource::LocalSnapshot => actions.push(ManagedPackageAction::Replace),
+                SkillSource::Git { .. } => actions.push(ManagedPackageAction::CheckUpdate),
+            }
+            if package.previous_revision.is_some() {
+                actions.push(ManagedPackageAction::Rollback);
+            }
+        }
+    }
+    if package.installations.is_empty() && safe_package_root(app_data, package) {
+        actions.push(ManagedPackageAction::Remove);
+    }
+    (
+        ManagedPackageReconciliation {
+            package_id: package.id.clone(),
+            library_diagnostic: library_error.map(Into::into),
+            available_actions: actions,
+        },
+        installations,
+    )
+}
+
+fn reconcile_installation_with_library(
+    package: &ManagedSkillPackage,
+    installation: &Installation,
+    library_error: Option<&SkillError>,
+) -> ManagedInstallationReconciliation {
+    let mut evidence = ReconciliationEvidence {
+        logical_path: installation.logical_path.clone(),
+        deployment_mode: installation.deployment_mode,
+        expected_target: (installation.deployment_mode != DeploymentMode::CopyFallback)
+            .then(|| package.library_path.clone()),
+        observed_target: None,
+        recorded_fingerprint: installation.last_known_fingerprint.clone(),
+        library_fingerprint: package.installed_revision.fingerprint.clone(),
+        observed_fingerprint: None,
+        configuration_provenance: installation.configuration_provenance.clone(),
+        deferred_checks: false,
+    };
+    let (status, diagnostic) = if let Some(error) = library_error {
+        evidence.deferred_checks = true;
+        (
+            ManagedInstallationStatus::Broken,
+            Some(error.clone().into()),
+        )
+    } else {
+        classify_projection(package, installation, &mut evidence)
+    };
+    let available_actions = installation_actions(status, installation);
+    ManagedInstallationReconciliation {
+        package_id: package.id.clone(),
+        agent: installation.agent,
+        status,
+        diagnostic,
+        evidence,
+        available_actions,
+    }
+}
+
+fn classify_projection(
+    package: &ManagedSkillPackage,
+    installation: &Installation,
+    evidence: &mut ReconciliationEvidence,
+) -> (ManagedInstallationStatus, Option<InventoryDiagnostic>) {
+    if installation.deployment_mode == DeploymentMode::CopyFallback
+        && installation.resolved_target != installation.logical_path
+    {
+        evidence.deferred_checks = true;
+        return broken_topology(installation);
+    }
+    if installation.deployment_mode != DeploymentMode::CopyFallback
+        && installation.last_known_fingerprint != package.installed_revision.fingerprint
+    {
+        evidence.deferred_checks = true;
+        return (
+            ManagedInstallationStatus::Broken,
+            Some(diagnostic(
+                SkillErrorCode::InvalidStructure,
+                "Recorded Installation fingerprint does not match the Installed Revision",
+                installation.logical_path.clone(),
+            )),
+        );
+    }
+    let metadata = match fs::symlink_metadata(&installation.logical_path) {
+        Ok(metadata) => metadata,
+        Err(error) if error.kind() == io::ErrorKind::NotFound => {
+            evidence.deferred_checks = true;
+            return (
+                ManagedInstallationStatus::Missing,
+                Some(diagnostic(
+                    SkillErrorCode::InstallationMissing,
+                    "Managed Installation path is missing; content and configuration checks are deferred until refresh",
+                    installation.logical_path.clone(),
+                )),
+            );
+        }
+        Err(error) => {
+            evidence.deferred_checks = true;
+            return (
+                ManagedInstallationStatus::Broken,
+                Some(SkillError::io(&installation.logical_path, error).into()),
+            );
+        }
+    };
+    match installation.deployment_mode {
+        DeploymentMode::CopyFallback => {
+            if metadata.file_type().is_symlink() || !metadata.is_dir() {
+                evidence.deferred_checks = true;
+                return broken_topology(installation);
+            }
+            match skill::validate_installed_revision(&installation.logical_path, &package.name) {
+                Ok(observed) => {
+                    evidence.observed_fingerprint = Some(observed.fingerprint.clone());
+                    if observed.fingerprint != installation.last_known_fingerprint
+                        || observed.fingerprint != package.installed_revision.fingerprint
+                    {
+                        evidence.deferred_checks = true;
+                        return (
+                            ManagedInstallationStatus::Drifted,
+                            Some(diagnostic(
+                                SkillErrorCode::ContentDrift,
+                                "Copy Fallback content differs from its recorded or current Managed Library fingerprint; configuration check is deferred until refresh",
+                                installation.logical_path.clone(),
+                            )),
+                        );
+                    }
+                }
+                Err(error) => {
+                    evidence.deferred_checks = true;
+                    return (ManagedInstallationStatus::Broken, Some(error.into()));
+                }
+            }
+        }
+        DeploymentMode::Symlink => {
+            if !metadata.file_type().is_symlink() {
+                evidence.deferred_checks = true;
+                return broken_topology(installation);
+            }
+            if let Some(result) = classify_link(package, installation, evidence) {
+                return result;
+            }
+        }
+        DeploymentMode::Junction => {
+            #[cfg(not(windows))]
+            {
+                evidence.deferred_checks = true;
+                return broken_topology(installation);
+            }
+            #[cfg(windows)]
+            {
+                if !metadata.is_dir() || metadata.file_type().is_symlink() {
+                    evidence.deferred_checks = true;
+                    return broken_topology(installation);
+                }
+                if let Some(result) = classify_link(package, installation, evidence) {
+                    return result;
+                }
+            }
+        }
+    }
+    if matches!(
+        installation.configuration_provenance,
+        ConfigurationProvenance::SkillDeck { .. }
+    ) {
+        if let Err(error) = configuration::validate_owned_configuration(&package.name, installation)
+        {
+            let status = if error.code == SkillErrorCode::ConfigurationDrift {
+                ManagedInstallationStatus::ConfigurationDrift
+            } else {
+                ManagedInstallationStatus::Broken
+            };
+            return (status, Some(error.into()));
+        }
+    }
+    (ManagedInstallationStatus::Healthy, None)
+}
+
+fn classify_link(
+    package: &ManagedSkillPackage,
+    installation: &Installation,
+    evidence: &mut ReconciliationEvidence,
+) -> Option<(ManagedInstallationStatus, Option<InventoryDiagnostic>)> {
+    let actual = match installation.logical_path.canonicalize() {
+        Ok(actual) => actual,
+        Err(error) => {
+            evidence.deferred_checks = true;
+            return Some((
+                ManagedInstallationStatus::Broken,
+                Some(diagnostic(
+                    SkillErrorCode::TopologyChanged,
+                    format!("Managed link cannot be resolved safely: {error}"),
+                    installation.logical_path.clone(),
+                )),
+            ));
+        }
+    };
+    evidence.observed_target = Some(actual.clone());
+    let expected = package
+        .library_path
+        .canonicalize()
+        .expect("validated Managed Library has a canonical path");
+    let recorded = installation.resolved_target.canonicalize().ok();
+    if actual != expected || recorded.as_ref() != Some(&expected) {
+        evidence.deferred_checks = true;
+        return Some((
+            ManagedInstallationStatus::Retargeted,
+            Some(diagnostic(
+                SkillErrorCode::TopologyChanged,
+                "Managed link resolves somewhere other than the recorded current Managed Library; configuration check is deferred until refresh",
+                installation.logical_path.clone(),
+            )),
+        ));
+    }
+    None
+}
+
+fn validate_library(package: &ManagedSkillPackage) -> Result<(), SkillError> {
+    let validated = skill::validate_installed_revision(&package.library_path, &package.name)?;
+    if validated.fingerprint != package.installed_revision.fingerprint {
+        return Err(SkillError::new(
+            SkillErrorCode::ContentDrift,
+            "Managed Library content no longer matches the Installed Revision",
+            Some(package.library_path.clone()),
+        ));
+    }
+    Ok(())
+}
+
+fn installation_actions(
+    status: ManagedInstallationStatus,
+    installation: &Installation,
+) -> Vec<ManagedInstallationAction> {
+    match status {
+        ManagedInstallationStatus::Healthy => {
+            let mut actions = Vec::new();
+            if !matches!(
+                installation.configuration_provenance,
+                ConfigurationProvenance::External { .. }
+            ) {
+                actions.push(if installation.enabled {
+                    ManagedInstallationAction::DisableConfiguration
+                } else {
+                    ManagedInstallationAction::EnableConfiguration
+                });
+            }
+            actions.extend([
+                ManagedInstallationAction::Detach,
+                ManagedInstallationAction::Uninstall,
+            ]);
+            actions
+        }
+        ManagedInstallationStatus::Missing => vec![
+            ManagedInstallationAction::Restore,
+            ManagedInstallationAction::ForgetInstallation,
+        ],
+        ManagedInstallationStatus::Drifted => vec![
+            ManagedInstallationAction::Restore,
+            ManagedInstallationAction::Detach,
+        ],
+        ManagedInstallationStatus::ConfigurationDrift => vec![
+            ManagedInstallationAction::ReapplyConfiguration,
+            ManagedInstallationAction::ForgetConfiguration,
+        ],
+        ManagedInstallationStatus::Retargeted | ManagedInstallationStatus::Broken => {
+            vec![ManagedInstallationAction::ForgetInstallation]
+        }
+    }
+}
+
+fn broken_topology(
+    installation: &Installation,
+) -> (ManagedInstallationStatus, Option<InventoryDiagnostic>) {
+    (
+        ManagedInstallationStatus::Broken,
+        Some(diagnostic(
+            SkillErrorCode::TopologyChanged,
+            "Managed Installation topology no longer matches its recorded deployment mode",
+            installation.logical_path.clone(),
+        )),
+    )
+}
+
+fn diagnostic(
+    code: SkillErrorCode,
+    message: impl Into<String>,
+    path: PathBuf,
+) -> InventoryDiagnostic {
+    InventoryDiagnostic {
+        code,
+        message: message.into(),
+        path: Some(path),
+    }
+}
+
+fn safe_package_root(app_data: &std::path::Path, package: &ManagedSkillPackage) -> bool {
+    if !skill::valid_name(&package.name) {
+        return false;
+    }
+    let root = app_data.join("library").join(&package.name);
+    if package.library_path != root.join("current") {
+        return false;
+    }
+    match fs::symlink_metadata(root) {
+        Err(error) if error.kind() == io::ErrorKind::NotFound => true,
+        Ok(metadata) => metadata.is_dir() && !metadata.file_type().is_symlink(),
+        _ => false,
+    }
 }
 
 fn is_root_artifact(agent: Agent, legacy: bool, path: &std::path::Path) -> bool {
@@ -403,6 +831,131 @@ mod tests {
             format!("---\nname: {name}\ndescription: Inventory fixture\n---\n"),
         )
         .unwrap();
+    }
+
+    fn managed_copy(temp: &TempDir) -> ManagedSkillPackage {
+        let library = temp.path().join("library/alpha-skill/current");
+        write_skill(library.parent().unwrap(), "current");
+        fs::write(
+            library.join("SKILL.md"),
+            "---\nname: alpha-skill\ndescription: Inventory fixture\n---\n",
+        )
+        .unwrap();
+        let fingerprint = skill::validate_installed_revision(&library, "alpha-skill")
+            .unwrap()
+            .fingerprint;
+        let logical = temp.path().join("agent/alpha-skill");
+        crate::library::copy_directory(&library, &logical).unwrap();
+        ManagedSkillPackage {
+            id: "package-1".to_owned(),
+            name: "alpha-skill".to_owned(),
+            library_path: library,
+            source: SkillSource::LocalSnapshot,
+            installed_revision: crate::state::InstalledRevision {
+                fingerprint: fingerprint.clone(),
+                commit_oid: None,
+            },
+            previous_revision: None,
+            installations: vec![Installation {
+                agent: Agent::Claude,
+                logical_path: logical.clone(),
+                resolved_target: logical,
+                deployment_mode: DeploymentMode::CopyFallback,
+                enabled: true,
+                last_known_fingerprint: fingerprint,
+                configuration_provenance: ConfigurationProvenance::None,
+            }],
+        }
+    }
+
+    #[test]
+    fn managed_copy_reconciliation_distinguishes_healthy_missing_drift_and_broken() {
+        let temp = TempDir::new().unwrap();
+        let package = managed_copy(&temp);
+        let installation = &package.installations[0];
+        assert_eq!(
+            reconcile_installation(&package, installation).status,
+            ManagedInstallationStatus::Healthy
+        );
+
+        fs::remove_dir_all(&installation.logical_path).unwrap();
+        assert_eq!(
+            reconcile_installation(&package, installation).status,
+            ManagedInstallationStatus::Missing
+        );
+        crate::library::copy_directory(&package.library_path, &installation.logical_path).unwrap();
+        fs::write(installation.logical_path.join("changed.txt"), "changed").unwrap();
+        assert_eq!(
+            reconcile_installation(&package, installation).status,
+            ManagedInstallationStatus::Drifted
+        );
+        fs::remove_file(installation.logical_path.join("SKILL.md")).unwrap();
+        assert_eq!(
+            reconcile_installation(&package, installation).status,
+            ManagedInstallationStatus::Broken
+        );
+    }
+
+    #[test]
+    fn managed_copy_reconciliation_rejects_a_mismatched_recorded_target() {
+        let temp = TempDir::new().unwrap();
+        let mut package = managed_copy(&temp);
+        package.installations[0].resolved_target = temp.path().join("outside");
+
+        assert_eq!(
+            reconcile_installation(&package, &package.installations[0]).status,
+            ManagedInstallationStatus::Broken
+        );
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn managed_link_reconciliation_reports_retargeted() {
+        use std::os::unix::fs::symlink;
+
+        let temp = TempDir::new().unwrap();
+        let mut package = managed_copy(&temp);
+        let logical_path = package.installations[0].logical_path.clone();
+        fs::remove_dir_all(&logical_path).unwrap();
+        let external = temp.path().join("external");
+        fs::create_dir_all(&external).unwrap();
+        symlink(&external, &logical_path).unwrap();
+        package.installations[0].deployment_mode = DeploymentMode::Symlink;
+        package.installations[0].resolved_target = package.library_path.clone();
+
+        assert_eq!(
+            reconcile_installation(&package, &package.installations[0]).status,
+            ManagedInstallationStatus::Retargeted
+        );
+    }
+
+    #[test]
+    fn managed_configuration_drift_is_visible_during_inventory() {
+        let temp = TempDir::new().unwrap();
+        let mut package = managed_copy(&temp);
+        let config = temp.path().join("settings.json");
+        fs::write(&config, r#"{"skillOverrides":{"alpha-skill":"off"}}"#).unwrap();
+        package.installations[0].configuration_provenance =
+            ConfigurationProvenance::SkillDeck { path: config };
+
+        assert_eq!(
+            reconcile_installation(&package, &package.installations[0]).status,
+            ManagedInstallationStatus::ConfigurationDrift
+        );
+    }
+
+    #[test]
+    fn managed_reconciliation_serializes_closed_status_actions_and_evidence() {
+        let temp = TempDir::new().unwrap();
+        let package = managed_copy(&temp);
+        let value =
+            serde_json::to_value(reconcile_installation(&package, &package.installations[0]))
+                .unwrap();
+
+        assert_eq!(value["status"], "healthy");
+        assert_eq!(value["availableActions"][0], "disable_configuration");
+        assert_eq!(value["evidence"]["deploymentMode"], "copy_fallback");
+        assert!(value["evidence"].get("libraryFingerprint").is_some());
     }
 
     #[test]

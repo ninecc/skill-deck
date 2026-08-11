@@ -9,7 +9,7 @@ use serde::Serialize;
 
 use crate::{
     configuration,
-    inventory::{self, Agent, AgentRoots},
+    inventory::{self, Agent, AgentRoots, ManagedInstallationStatus},
     library::{copy_directory, remove_directory},
     skill::{self, SkillError, SkillErrorCode},
     state::{AppState, DeploymentMode, Installation, ManagedSkillPackage, StateMode, StateStore},
@@ -89,7 +89,7 @@ impl InstallManager {
         let _mutation = self.mutation.try_lock().map_err(|_| busy_error())?;
         let state = load_writable_state(app_data)?;
         let package = package(&state, package_id)?;
-        validate_library(package)?;
+        validate_package_expansion(package)?;
         let targets = preflight(package, &targets, create_missing_roots, &roots)?;
         let id = crate::library::next_id();
         let public = InstallPlan {
@@ -146,7 +146,7 @@ impl InstallManager {
             .position(|candidate| candidate.id == plan.public.package_id)
             .ok_or_else(|| missing_package(&plan.public.package_id))?;
         let package = &state.packages[package_index];
-        validate_library(package)?;
+        validate_package_expansion(package)?;
         let agents = plan
             .public
             .targets
@@ -338,6 +338,26 @@ fn validate_library(package: &ManagedSkillPackage) -> Result<(), SkillError> {
             "Managed Library content no longer matches the Installed Revision",
             Some(package.library_path.clone()),
         ));
+    }
+    Ok(())
+}
+
+fn validate_package_expansion(package: &ManagedSkillPackage) -> Result<(), SkillError> {
+    validate_library(package)?;
+    if let Some(reconciliation) = package.installations.iter().find_map(|installation| {
+        let reconciliation = inventory::reconcile_installation(package, installation);
+        (reconciliation.status != ManagedInstallationStatus::Healthy).then_some(reconciliation)
+    }) {
+        return Err(reconciliation
+            .diagnostic
+            .map(|diagnostic| SkillError::new(diagnostic.code, diagnostic.message, diagnostic.path))
+            .unwrap_or_else(|| {
+                SkillError::new(
+                    SkillErrorCode::Conflict,
+                    "Install is frozen until every managed Installation is healthy",
+                    Some(reconciliation.evidence.logical_path),
+                )
+            }));
     }
     Ok(())
 }
@@ -698,6 +718,41 @@ mod tests {
             "user data"
         );
         assert!(!roots.codex.join("alpha-skill").exists());
+    }
+
+    #[test]
+    fn installation_drift_invalidates_an_install_plan_for_another_agent() {
+        let (_temp, app_data, roots, mut package) = fixture();
+        let logical = roots.codex.join("alpha-skill");
+        copy_directory(&package.library_path, &logical).unwrap();
+        package.installations.push(Installation {
+            agent: Agent::Codex,
+            logical_path: logical.clone(),
+            resolved_target: logical.clone(),
+            deployment_mode: DeploymentMode::CopyFallback,
+            enabled: true,
+            last_known_fingerprint: package.installed_revision.fingerprint.clone(),
+            configuration_provenance: ConfigurationProvenance::None,
+        });
+        StateStore::new(app_data.clone())
+            .save(&AppState {
+                state_version: 1,
+                packages: vec![package.clone()],
+            })
+            .unwrap();
+        let manager = InstallManager::default();
+        let plan = manager
+            .plan_for_roots(&app_data, &package.id, vec![Agent::Claude], false, roots)
+            .unwrap();
+        fs::write(logical.join("changed.txt"), "drift").unwrap();
+
+        assert_eq!(
+            manager
+                .commit_with_linker(&app_data, &plan.id, false, create_preferred_link)
+                .unwrap_err()
+                .code,
+            SkillErrorCode::ContentDrift
+        );
     }
 
     #[test]

@@ -43,6 +43,7 @@ pub enum SkillErrorCode {
     InvalidStructure,
     InvalidMetadata,
     InvalidPlan,
+    InstallationMissing,
     LegacyConflict,
     ResourceLimitExceeded,
     SourceMissing,
@@ -411,7 +412,7 @@ fn take_required_string(
         })
 }
 
-fn valid_name(name: &str) -> bool {
+pub(crate) fn valid_name(name: &str) -> bool {
     !name.is_empty()
         && name.len() <= 64
         && !name.starts_with('-')
