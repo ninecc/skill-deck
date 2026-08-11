@@ -8,7 +8,7 @@
 
 <!-- @@@auto:current-status -->
 - **Active File**: `journal-1.md`
-- **Total Sessions**: 2
+- **Total Sessions**: 3
 - **Last Active**: 2026-08-11
 <!-- @@@/auto:current-status -->
 
@@ -19,7 +19,7 @@
 <!-- @@@auto:active-documents -->
 | File | Lines | Status |
 |------|-------|--------|
-| `journal-1.md` | ~52 | Active |
+| `journal-1.md` | ~73 | Active |
 <!-- @@@/auto:active-documents -->
 
 ---
@@ -29,6 +29,7 @@
 <!-- @@@auto:session-history -->
 | # | Date | Title | Commits | Branch |
 |---|------|-------|---------|--------|
+| 3 | 2026-08-11 | Skill manager landscape and roadmap | `df0089a` | `main` |
 | 2 | 2026-08-11 | Fix Skill Deck inventory diagnostics | `a917112`, `dae8aaa` | `main` |
 | 1 | 2026-08-11 | Build Skill Deck desktop manager | `dbf38cf`, `f1897bf`, `3078e55` | `main` |
 <!-- @@@/auto:session-history -->

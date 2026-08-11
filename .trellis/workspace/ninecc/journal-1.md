@@ -50,3 +50,24 @@ Separated valid external installations from structured attention entries, improv
 ### Status
 
 [OK] **Completed**
+
+
+## Session 3: Skill manager landscape and roadmap
+
+**Date**: 2026-08-11
+**Task**: Skill manager landscape and roadmap
+**Branch**: `main`
+
+### Summary
+
+Added the primary-source skill manager landscape research and separated the implementation-calibrated R1-R4 product roadmap into docs/roadmap.md.
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `df0089a` | (see git log) |
+
+### Status
+
+[OK] **Completed**
