@@ -178,3 +178,25 @@ Resolved Finder-launched Node toolchain discovery, localized startup failures, m
 ### Status
 
 [OK] **Completed**
+
+
+## Session 9: Improve startup, discovery, and translation responsiveness
+
+**Date**: 2026-08-12
+**Task**: Improve startup, discovery, and translation responsiveness
+**Branch**: `main`
+
+### Summary
+
+Eliminated duplicate startup Inventory reads, added truthful loading and compact Inventory UI, moved Find and install into an independent sheet, and batched protected Markdown translation requests. Verified all automated gates; the configured local proxy later became TLS-unhealthy, so the final long-document network green run is recorded as externally blocked.
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `a751205` | (see git log) |
+| `571b98c` | (see git log) |
+
+### Status
+
+[OK] **Completed**
