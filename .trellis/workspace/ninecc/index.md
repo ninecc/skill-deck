@@ -8,8 +8,8 @@
 
 <!-- @@@auto:current-status -->
 - **Active File**: `journal-1.md`
-- **Total Sessions**: 11
-- **Last Active**: 2026-08-12
+- **Total Sessions**: 12
+- **Last Active**: 2026-08-13
 <!-- @@@/auto:current-status -->
 
 ---
@@ -19,7 +19,7 @@
 <!-- @@@auto:active-documents -->
 | File | Lines | Status |
 |------|-------|--------|
-| `journal-1.md` | ~245 | Active |
+| `journal-1.md` | ~266 | Active |
 <!-- @@@/auto:active-documents -->
 
 ---
@@ -29,6 +29,7 @@
 <!-- @@@auto:session-history -->
 | # | Date | Title | Commits | Branch |
 |---|------|-------|---------|--------|
+| 12 | 2026-08-13 | Retire historical UI visual authority | `a51a725` | `main` |
 | 11 | 2026-08-12 | Tauri desktop UI UX refactor | `50b86cb`, `a7c9be4` | `main` |
 | 10 | 2026-08-12 | Fix translation state and loading layout | `7772306` | `main` |
 | 9 | 2026-08-12 | Improve startup, discovery, and translation responsiveness | `a751205`, `571b98c` | `main` |

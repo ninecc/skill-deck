@@ -243,3 +243,24 @@ Refactored the desktop shell around a shared application command model, accessib
 ### Status
 
 [OK] **Completed**
+
+
+## Session 12: Retire historical UI visual authority
+
+**Date**: 2026-08-13
+**Task**: Retire historical UI visual authority
+**Branch**: `main`
+
+### Summary
+
+Removed Prototype G and current theme/component styling as default future visual authority; added Approved/Historical Visual Direction vocabulary, preserved accessibility and interaction architecture, and documented partial ADR-0014 supersession without changing runtime UI.
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `a51a725` | (see git log) |
+
+### Status
+
+[OK] **Completed**
