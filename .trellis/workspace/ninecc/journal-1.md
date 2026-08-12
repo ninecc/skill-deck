@@ -134,3 +134,25 @@ Verified the matching CI universal DMG in the packaged app, proved Codex and Cla
 ### Status
 
 [OK] **Completed**
+
+
+## Session 7: Delegate Skill lifecycle to upstream CLI
+
+**Date**: 2026-08-12
+**Task**: Delegate Skill lifecycle to upstream CLI
+**Branch**: `main`
+
+### Summary
+
+Replaced the custom Managed Library lifecycle with a pinned npx skills desktop adapter, global Inventory, safe Preview and best-effort translation; simplified the React UI and themes; added boundary tests, synchronized executable specs, and validated the macOS app.
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `7c69e26` | (see git log) |
+| `53cffa4` | (see git log) |
+
+### Status
+
+[OK] **Completed**
