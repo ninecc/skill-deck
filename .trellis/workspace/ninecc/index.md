@@ -8,7 +8,7 @@
 
 <!-- @@@auto:current-status -->
 - **Active File**: `journal-1.md`
-- **Total Sessions**: 7
+- **Total Sessions**: 8
 - **Last Active**: 2026-08-12
 <!-- @@@/auto:current-status -->
 
@@ -19,7 +19,7 @@
 <!-- @@@auto:active-documents -->
 | File | Lines | Status |
 |------|-------|--------|
-| `journal-1.md` | ~158 | Active |
+| `journal-1.md` | ~180 | Active |
 <!-- @@@/auto:active-documents -->
 
 ---
@@ -29,6 +29,7 @@
 <!-- @@@auto:session-history -->
 | # | Date | Title | Commits | Branch |
 |---|------|-------|---------|--------|
+| 8 | 2026-08-12 | Fix packaged startup and translation responsiveness | `36a5a99`, `ff99b3e` | `main` |
 | 7 | 2026-08-12 | Delegate Skill lifecycle to upstream CLI | `7c69e26`, `53cffa4` | `main` |
 | 6 | 2026-08-11 | macOS installer smoke | `29be66b` | `main` |
 | 5 | 2026-08-11 | Agent projection contract smoke | `e93f224` | `main` |

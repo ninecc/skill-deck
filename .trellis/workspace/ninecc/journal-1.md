@@ -156,3 +156,25 @@ Replaced the custom Managed Library lifecycle with a pinned npx skills desktop a
 ### Status
 
 [OK] **Completed**
+
+
+## Session 8: Fix packaged startup and translation responsiveness
+
+**Date**: 2026-08-12
+**Task**: Fix packaged startup and translation responsiveness
+**Branch**: `main`
+
+### Summary
+
+Resolved Finder-launched Node toolchain discovery, localized startup failures, moved blocking Tauri work off the event loop, bounded translation networking with proxy support, and verified release startup plus full frontend/Rust gates.
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `36a5a99` | (see git log) |
+| `ff99b3e` | (see git log) |
+
+### Status
+
+[OK] **Completed**
