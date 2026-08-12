@@ -15,6 +15,7 @@ export interface RuntimeStatus {
   version: string | null;
   nodeVersion: string | null;
   message: string | null;
+  inventory: InstalledSkill[];
 }
 
 export interface InstalledSkill {
@@ -75,7 +76,6 @@ export interface TranslationResult {
 
 export const runtimeStatus = () => invoke<RuntimeStatus>("runtime_status");
 export const retryRuntime = () => invoke<RuntimeStatus>("retry_runtime");
-export const listSkills = () => invoke<InstalledSkill[]>("list_skills");
 export const searchSkills = (query: string) =>
   invoke<SearchResult[]>("search_skills", { query });
 export const addSkill = (

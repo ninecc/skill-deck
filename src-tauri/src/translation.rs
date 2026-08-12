@@ -3,13 +3,17 @@ use crate::{
     preview,
 };
 use serde::Serialize;
-use std::time::{Duration, Instant};
+use std::{
+    sync::atomic::{AtomicUsize, Ordering},
+    time::{Duration, Instant},
+};
 
 const GOOGLE_ENDPOINT: &str = "https://translate.googleapis.com/translate_a/single";
 const CHUNK_CHARS: usize = 3_500;
 const MAX_PROXY_BYTES: usize = 2_048;
 const CONNECT_TIMEOUT: Duration = Duration::from_secs(5);
 const OPERATION_TIMEOUT: Duration = Duration::from_secs(15);
+const BATCH_WORKERS: usize = 4;
 const LANGUAGES: &[&str] = &[
     "en", "zh-Hans", "zh-Hant", "ja", "ko", "es", "fr", "de", "pt", "it", "ru", "ar", "hi",
 ];
@@ -51,23 +55,16 @@ pub fn translate_installed(
     };
     let markdown = matches!(content.viewer, preview::ViewerKind::Markdown);
     // ponytail: anonymous endpoint is best-effort; replace this function with a supported provider when quotas or reliability matter.
-    let mut detected = None;
-    let translated_text = if markdown {
-        map_markdown_prose(&text, |prose| {
-            let result = google_translate(&client, deadline, prose, provider_target)?;
-            if detected.is_none() {
-                detected = result.detected_source_language;
-            }
-            Ok(result.translated_text)
+    let result = if markdown {
+        translate_markdown(&text, BATCH_WORKERS, |batch| {
+            google_translate(&client, deadline, batch, provider_target)
         })?
     } else {
-        let result = google_translate(&client, deadline, &text, provider_target)?;
-        detected = result.detected_source_language;
-        result.translated_text
+        google_translate(&client, deadline, &text, provider_target)?
     };
     Ok(TranslationResult {
-        translated_text,
-        detected_source_language: detected,
+        translated_text: result.translated_text,
+        detected_source_language: result.detected_source_language,
     })
 }
 
@@ -119,6 +116,10 @@ fn incompatible_response() -> CommandError {
         "translation_response",
         "The translation provider returned an incompatible response.",
     )
+}
+
+fn background_failure() -> CommandError {
+    CommandError::new("internal", "The background translation could not complete.")
 }
 
 fn remaining(deadline: Instant) -> Result<Duration, CommandError> {
@@ -217,6 +218,201 @@ fn chunks(text: &str, max_chars: usize) -> Vec<&str> {
         chunks.push(&text[start..]);
     }
     chunks
+}
+
+#[derive(Debug)]
+struct MarkdownBatch {
+    payload: String,
+    segments: Vec<(usize, std::ops::Range<usize>)>,
+}
+
+fn markdown_batches(markdown: &str) -> Result<Vec<MarkdownBatch>, CommandError> {
+    let mut ranges = Vec::new();
+    let mut cursor = 0;
+    map_markdown_prose(markdown, |prose| {
+        let start = (prose.as_ptr() as usize)
+            .checked_sub(markdown.as_ptr() as usize)
+            .filter(|start| *start >= cursor)
+            .filter(|start| markdown.get(*start..*start + prose.len()) == Some(prose))
+            .ok_or_else(background_failure)?;
+        ranges.push(start..start + prose.len());
+        cursor = start + prose.len();
+        Ok(prose.to_owned())
+    })?;
+
+    let mut segments = Vec::new();
+    for range in ranges {
+        let mut start = range.start;
+        while start < range.end {
+            let id = segments.len();
+            let overhead = span_open(id).chars().count() + "</span>".len();
+            let mut encoded_chars = 0;
+            let mut end = start;
+            for (offset, character) in markdown[start..range.end].char_indices() {
+                let next = escaped_char(character).chars().count();
+                if overhead + encoded_chars + next > CHUNK_CHARS {
+                    break;
+                }
+                encoded_chars += next;
+                end = start + offset + character.len_utf8();
+            }
+            if end == start {
+                return Err(background_failure());
+            }
+            segments.push((id, start..end));
+            start = end;
+        }
+    }
+
+    let mut batches: Vec<MarkdownBatch> = Vec::new();
+    for (id, range) in segments {
+        let entry = format!(
+            "{}{}</span>",
+            span_open(id),
+            escape_html(&markdown[range.clone()])
+        );
+        let entry_chars = entry.chars().count();
+        if batches
+            .last()
+            .is_none_or(|batch| batch.payload.chars().count() + entry_chars > CHUNK_CHARS)
+        {
+            batches.push(MarkdownBatch {
+                payload: String::new(),
+                segments: Vec::new(),
+            });
+        }
+        let batch = batches.last_mut().expect("a batch was just created");
+        batch.payload.push_str(&entry);
+        batch.segments.push((id, range));
+    }
+    Ok(batches)
+}
+
+fn span_open(id: usize) -> String {
+    format!(r#"<span data-sd="{id}">"#)
+}
+
+fn escaped_char(character: char) -> String {
+    match character {
+        '&' => "&amp;".into(),
+        '<' => "&lt;".into(),
+        '>' => "&gt;".into(),
+        '"' => "&quot;".into(),
+        '\'' => "&#39;".into(),
+        value => value.into(),
+    }
+}
+
+fn escape_html(text: &str) -> String {
+    text.chars().map(escaped_char).collect()
+}
+
+fn decode_html(text: &str) -> Result<String, CommandError> {
+    let mut decoded = String::new();
+    let mut rest = text;
+    while let Some(index) = rest.find(['&', '<', '>']) {
+        decoded.push_str(&rest[..index]);
+        rest = &rest[index..];
+        let (entity, value) = [
+            ("&amp;", '&'),
+            ("&lt;", '<'),
+            ("&gt;", '>'),
+            ("&quot;", '"'),
+            ("&#39;", '\''),
+        ]
+        .into_iter()
+        .find(|(entity, _)| rest.starts_with(entity))
+        .ok_or_else(incompatible_response)?;
+        decoded.push(value);
+        rest = &rest[entity.len()..];
+    }
+    decoded.push_str(rest);
+    Ok(decoded)
+}
+
+fn parse_batch(text: &str, expected: &[usize]) -> Result<Vec<String>, CommandError> {
+    let mut rest = text;
+    let mut translated = Vec::with_capacity(expected.len());
+    for id in expected {
+        rest = rest
+            .strip_prefix(&span_open(*id))
+            .ok_or_else(incompatible_response)?;
+        let end = rest.find("</span>").ok_or_else(incompatible_response)?;
+        translated.push(decode_html(&rest[..end])?);
+        rest = &rest[end + "</span>".len()..];
+    }
+    if !rest.is_empty() {
+        return Err(incompatible_response());
+    }
+    Ok(translated)
+}
+
+fn translate_markdown<F>(
+    markdown: &str,
+    workers: usize,
+    translate: F,
+) -> Result<TranslationResult, CommandError>
+where
+    F: Fn(&str) -> Result<TranslationResult, CommandError> + Sync,
+{
+    let batches = markdown_batches(markdown)?;
+    if batches.is_empty() {
+        return Ok(TranslationResult {
+            translated_text: markdown.to_owned(),
+            detected_source_language: None,
+        });
+    }
+
+    let next = AtomicUsize::new(0);
+    let (sender, receiver) = std::sync::mpsc::channel();
+    let workers_completed = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+        std::thread::scope(|scope| {
+            for _ in 0..workers.min(batches.len()).max(1) {
+                let sender = sender.clone();
+                let batches = &batches;
+                let translate = &translate;
+                let next = &next;
+                scope.spawn(move || loop {
+                    let index = next.fetch_add(1, Ordering::Relaxed);
+                    let Some(batch) = batches.get(index) else {
+                        break;
+                    };
+                    if sender.send((index, translate(&batch.payload))).is_err() {
+                        break;
+                    }
+                });
+            }
+            drop(sender);
+        });
+    }));
+    if workers_completed.is_err() {
+        return Err(background_failure());
+    }
+    let mut translated: Vec<_> = receiver.into_iter().collect();
+    translated.sort_by_key(|(index, _)| *index);
+    if translated.len() != batches.len() {
+        return Err(background_failure());
+    }
+
+    let mut output = String::with_capacity(markdown.len());
+    let mut detected = None;
+    let mut source_cursor = 0;
+    for (batch, (_, result)) in batches.into_iter().zip(translated) {
+        let result = result?;
+        let ids: Vec<_> = batch.segments.iter().map(|(id, _)| *id).collect();
+        let bodies = parse_batch(&result.translated_text, &ids)?;
+        for ((_, range), body) in batch.segments.into_iter().zip(bodies) {
+            output.push_str(&markdown[source_cursor..range.start]);
+            output.push_str(&body);
+            source_cursor = range.end;
+        }
+        detected = detected.or(result.detected_source_language);
+    }
+    output.push_str(&markdown[source_cursor..]);
+    Ok(TranslationResult {
+        translated_text: output,
+        detected_source_language: detected,
+    })
 }
 
 fn map_markdown_prose<F>(markdown: &str, mut translate: F) -> Result<String, CommandError>
@@ -373,6 +569,7 @@ fn is_markdown_syntax(byte: u8) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::sync::atomic::AtomicUsize;
 
     #[test]
     fn chunks_only_at_utf8_boundaries_and_preserves_order() {
@@ -443,5 +640,139 @@ mod tests {
             }
         });
         assert_eq!(result.unwrap_err().code, "translation_unavailable");
+    }
+
+    #[test]
+    fn markdown_translation_is_bounded_ordered_and_atomic() {
+        let source = (0..12)
+            .map(|index| format!("fragment-{index} {}\n", "x".repeat(1_800)))
+            .collect::<String>();
+        let batch_count = markdown_batches(&source).unwrap().len();
+        let active = AtomicUsize::new(0);
+        let peak = AtomicUsize::new(0);
+        let result = translate_markdown(&source, 3, |text| {
+            let current = active.fetch_add(1, Ordering::SeqCst) + 1;
+            peak.fetch_max(current, Ordering::SeqCst);
+            std::thread::sleep(Duration::from_millis(2));
+            active.fetch_sub(1, Ordering::SeqCst);
+            Ok(TranslationResult {
+                translated_text: text.replace("fragment", "FRAGMENT"),
+                detected_source_language: Some("en".into()),
+            })
+        })
+        .unwrap();
+        assert_eq!(
+            result.translated_text,
+            source.replace("fragment", "FRAGMENT")
+        );
+        assert!((2..=3).contains(&peak.load(Ordering::SeqCst)));
+
+        let completed = AtomicUsize::new(0);
+        let result = translate_markdown(&source, 3, |text| {
+            let call = completed.fetch_add(1, Ordering::SeqCst);
+            if call == 1 {
+                return Err(provider_unavailable());
+            }
+            Ok(TranslationResult {
+                translated_text: text.into(),
+                detected_source_language: None,
+            })
+        });
+        assert_eq!(result.unwrap_err().code, "translation_unavailable");
+        assert_eq!(completed.load(Ordering::SeqCst), batch_count);
+    }
+
+    #[test]
+    fn markdown_batches_escape_pack_and_strictly_validate_markers() {
+        let escaped = escape_html("&<>\"'");
+        assert_eq!(escaped, "&amp;&lt;&gt;&quot;&#39;");
+        assert_eq!(decode_html(&escaped).unwrap(), "&<>\"'");
+        assert!(decode_html("&copy;").is_err());
+
+        let source = format!("first & <tag>\n{}\n", "&".repeat(CHUNK_CHARS));
+        let batches = markdown_batches(&source).unwrap();
+        assert!(batches.len() > 1);
+        assert!(batches
+            .iter()
+            .all(|batch| batch.payload.chars().count() <= CHUNK_CHARS));
+        let first_ids: Vec<_> = batches[0].segments.iter().map(|(id, _)| *id).collect();
+        assert!(parse_batch(&batches[0].payload, &first_ids).is_ok());
+        assert!(parse_batch(
+            &batches[0]
+                .payload
+                .replacen("data-sd=\"0\"", "data-sd=\"9\"", 1),
+            &first_ids,
+        )
+        .is_err());
+        assert!(parse_batch(
+            &format!("{}<span data-sd=\"0\">duplicate</span>", batches[0].payload),
+            &first_ids,
+        )
+        .is_err());
+        assert!(parse_batch("", &first_ids).is_err());
+        assert!(parse_batch("<span data-sd=\"999\">text</span>", &first_ids).is_err());
+        assert!(parse_batch("<span data-sd=\"0\"><b>text</b></span>", &[0]).is_err());
+        assert!(parse_batch("<span data-sd=\"0\">&copy;</span>", &[0]).is_err());
+
+        let unicode = format!("{}\n", "界".repeat(CHUNK_CHARS + 1));
+        let unicode_batches = markdown_batches(&unicode).unwrap();
+        assert!(unicode_batches.len() > 1);
+        assert!(unicode_batches
+            .iter()
+            .all(|batch| batch.payload.chars().count() <= CHUNK_CHARS));
+        let decoded = unicode_batches
+            .iter()
+            .flat_map(|batch| {
+                let ids: Vec<_> = batch.segments.iter().map(|(id, _)| *id).collect();
+                parse_batch(&batch.payload, &ids).unwrap()
+            })
+            .collect::<String>();
+        assert_eq!(decoded, unicode.trim_end());
+    }
+
+    #[test]
+    fn markdown_detection_uses_document_order_not_completion_order() {
+        let source = format!(
+            "first {}\nsecond {}\n",
+            "x".repeat(2_000),
+            "y".repeat(2_000)
+        );
+        let result = translate_markdown(&source, 2, |payload| {
+            let first = payload.starts_with("<span data-sd=\"0\">");
+            if first {
+                std::thread::sleep(Duration::from_millis(5));
+            }
+            Ok(TranslationResult {
+                translated_text: payload.into(),
+                detected_source_language: Some(if first { "first" } else { "later" }.into()),
+            })
+        })
+        .unwrap();
+        assert_eq!(result.translated_text, source);
+        assert_eq!(result.detected_source_language.as_deref(), Some("first"));
+    }
+
+    #[test]
+    fn markdown_translation_uses_source_ranges_and_contains_worker_panics() {
+        let source = "`repeat` repeat\n";
+        let result = translate_markdown(source, 2, |text| {
+            Ok(TranslationResult {
+                translated_text: text.replace("repeat", "REPEAT"),
+                detected_source_language: None,
+            })
+        })
+        .unwrap();
+        assert_eq!(result.translated_text, "`repeat` REPEAT\n");
+
+        let result = translate_markdown("first\nsecond\n", 2, |text| {
+            if text.contains("second") {
+                panic!("provider worker panic");
+            }
+            Ok(TranslationResult {
+                translated_text: text.into(),
+                detected_source_language: None,
+            })
+        });
+        assert_eq!(result.unwrap_err().code, "internal");
     }
 }

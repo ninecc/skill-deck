@@ -31,14 +31,6 @@ async fn retry_runtime(
 }
 
 #[tauri::command]
-async fn list_skills(
-    manager: tauri::State<'_, Arc<cli::CliManager>>,
-) -> Result<Vec<cli::InstalledSkill>, cli::CommandError> {
-    let manager = Arc::clone(manager.inner());
-    blocking(move || manager.list()).await
-}
-
-#[tauri::command]
 async fn search_skills(
     manager: tauri::State<'_, Arc<cli::CliManager>>,
     query: String,
@@ -133,7 +125,6 @@ pub fn run() {
         .invoke_handler(tauri::generate_handler![
             runtime_status,
             retry_runtime,
-            list_skills,
             search_skills,
             add_skill,
             remove_skill,

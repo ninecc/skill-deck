@@ -1,13 +1,16 @@
 export const catalogs = {
   en: {
     installed: "Installed Skills",
+    findInstall: "Find & install",
     search: "Find Skills",
     settings: "Settings",
     updateAll: "Update all",
     filter: "Filter installed Skills",
     noSkills: "No global Skills are installed.",
+    noMatchingSkills: "No matching Skills.",
     chooseSkill: "Choose an installed Skill to preview its files.",
-    loading: "Connecting to the Skills CLI…",
+    loadingSkills: "Loading Skills…",
+    translating: "Translating…",
     runtimeErrorTitle: "Skills CLI unavailable",
     runtimeNotFound:
       "Skill Deck could not find a supported Node.js and npx installation.",
@@ -75,13 +78,16 @@ export const catalogs = {
   },
   "zh-CN": {
     installed: "已安装 Skills",
+    findInstall: "查找与安装",
     search: "查找 Skills",
     settings: "设置",
     updateAll: "全部更新",
     filter: "筛选已安装 Skill",
     noSkills: "尚未安装全局 Skill。",
+    noMatchingSkills: "没有匹配的 Skill。",
     chooseSkill: "选择一个已安装 Skill 以预览文件。",
-    loading: "正在连接 Skills CLI…",
+    loadingSkills: "正在加载 Skills…",
+    translating: "正在翻译…",
     runtimeErrorTitle: "Skills CLI 不可用",
     runtimeNotFound: "Skill Deck 未找到受支持的 Node.js 与 npx 安装。",
     runtimeNotFoundHint:

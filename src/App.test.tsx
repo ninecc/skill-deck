@@ -7,6 +7,16 @@ import App from "./App";
 const { invokeMock } = vi.hoisted(() => ({ invokeMock: vi.fn() }));
 vi.mock("@tauri-apps/api/core", () => ({ invoke: invokeMock }));
 
+const demoSkill = {
+  name: "demo",
+  path: "/tmp/demo",
+  scope: "global",
+  agents: ["Future Agent"],
+  source: "owner/repo",
+  sourceUrl: null,
+  sourceType: "github",
+};
+
 describe("CLI-backed workspace", () => {
   let container: HTMLDivElement;
   let root: ReturnType<typeof createRoot>;
@@ -24,22 +34,12 @@ describe("CLI-backed workspace", () => {
       if (command === "runtime_status")
         return Promise.resolve({
           ready: true,
+          errorCode: null,
           version: "1.5.22",
           nodeVersion: "22.20.0",
           message: null,
+          inventory: [demoSkill],
         });
-      if (command === "list_skills")
-        return Promise.resolve([
-          {
-            name: "demo",
-            path: "/tmp/demo",
-            scope: "global",
-            agents: ["Future Agent"],
-            source: "owner/repo",
-            sourceUrl: null,
-            sourceType: "github",
-          },
-        ]);
       if (command === "preview_tree") return Promise.resolve([]);
       return Promise.reject(new Error(`Unexpected command: ${command}`));
     });
@@ -58,10 +58,15 @@ describe("CLI-backed workspace", () => {
     invokeMock.mockReset();
   });
 
-  it("shows arbitrary agents and starts without a selected Skill", async () => {
+  it("publishes startup Inventory without rendering hidden Agent targets", async () => {
     await act(async () => root.render(<App />));
-    expect(container.textContent).toContain("Future Agent");
+    expect(invokeMock).toHaveBeenCalledTimes(1);
+    expect(invokeMock).toHaveBeenCalledWith("runtime_status");
+    expect(container.textContent).not.toContain("Future Agent");
+    expect(container.textContent).toContain("owner/repo");
+    expect(container.textContent).toContain("/tmp/demo");
     expect(container.textContent).toContain("Choose an installed Skill");
+    expect(container.querySelector(".choose-placeholder .icon")).toBeNull();
     expect(
       container.querySelector('[role="option"]')?.getAttribute("aria-selected"),
     ).toBe("false");
@@ -71,13 +76,204 @@ describe("CLI-backed workspace", () => {
     invokeMock.mockImplementation(() => new Promise(() => undefined));
     await act(async () => root.render(<App />));
     expect(container.textContent).toContain("Skill Deck");
-    expect(container.textContent).toContain("Connecting to the Skills CLI");
+    expect(container.textContent).toContain("Loading Skills");
+    expect(container.textContent).not.toContain("No global Skills");
+    expect(container.querySelector(".spinner")).not.toBeNull();
     expect(
       (container.querySelector(".bar-actions .button") as HTMLButtonElement)
         .disabled,
     ).toBe(true);
     expect(container.querySelector('[aria-label="Settings"]')).not.toBeNull();
     expect(container.querySelector('[aria-label="Language"]')).not.toBeNull();
+  });
+
+  it("distinguishes empty Inventory from filter misses on visible fields", async () => {
+    await act(async () => root.render(<App />));
+    const filter = container.querySelector(
+      '[aria-label="Filter installed Skills"]',
+    ) as HTMLInputElement;
+    const setFilter = (value: string) => {
+      Object.getOwnPropertyDescriptor(
+        HTMLInputElement.prototype,
+        "value",
+      )?.set?.call(filter, value);
+      filter.dispatchEvent(new Event("input", { bubbles: true }));
+    };
+
+    await act(async () => setFilter("Future Agent"));
+    expect(container.textContent).toContain("No matching Skills");
+    expect(container.textContent).not.toContain("No global Skills");
+    await act(async () => setFilter("owner/repo"));
+    expect(container.querySelector('[role="option"]')).not.toBeNull();
+    await act(async () => setFilter("/tmp/demo"));
+    expect(container.querySelector('[role="option"]')).not.toBeNull();
+
+    await act(async () => root.unmount());
+    root = createRoot(container);
+    invokeMock.mockResolvedValue({
+      ready: true,
+      errorCode: null,
+      version: "1.5.22",
+      nodeVersion: "22.20.0",
+      message: null,
+      inventory: [],
+    });
+    await act(async () => root.render(<App />));
+    expect(container.textContent).toContain("No global Skills are installed");
+    const emptyFilter = container.querySelector(
+      '[aria-label="Filter installed Skills"]',
+    ) as HTMLInputElement;
+    await act(async () => {
+      Object.getOwnPropertyDescriptor(
+        HTMLInputElement.prototype,
+        "value",
+      )?.set?.call(emptyFilter, "missing");
+      emptyFilter.dispatchEvent(new Event("input", { bubbles: true }));
+    });
+    expect(container.textContent).not.toContain("No matching Skills");
+    expect(container.textContent).not.toContain("No global Skills");
+  });
+
+  it("publishes Retry Inventory without a separate list command", async () => {
+    invokeMock
+      .mockResolvedValueOnce({
+        ready: false,
+        errorCode: "runtime_not_found",
+        version: null,
+        nodeVersion: null,
+        message: "unavailable",
+        inventory: [],
+      })
+      .mockResolvedValueOnce({
+        ready: true,
+        errorCode: null,
+        version: "1.5.22",
+        nodeVersion: "22.20.0",
+        message: null,
+        inventory: [demoSkill],
+      });
+    await act(async () => root.render(<App />));
+    const retry = Array.from(container.querySelectorAll("button")).find(
+      (button) => button.textContent === "Retry",
+    ) as HTMLButtonElement;
+    await act(async () => retry.click());
+    expect(container.querySelector('[role="option"]')?.textContent).toContain(
+      "demo",
+    );
+    expect(invokeMock.mock.calls.map(([command]) => command)).toEqual([
+      "runtime_status",
+      "retry_runtime",
+    ]);
+  });
+
+  it("opens catalog search and source install in a separate sheet", async () => {
+    invokeMock.mockImplementation((command: string) => {
+      if (command === "runtime_status")
+        return Promise.resolve({
+          ready: true,
+          errorCode: null,
+          version: "1.5.22",
+          nodeVersion: "22.20.0",
+          message: null,
+          inventory: [demoSkill],
+        });
+      if (command === "search_skills")
+        return Promise.resolve([
+          {
+            name: "found",
+            slug: "owner/repo/found",
+            source: "owner/repo",
+            installs: 42,
+          },
+        ]);
+      if (command === "add_skill")
+        return Promise.resolve({
+          inventory: [demoSkill],
+          changedSkills: [],
+          targetObserved: true,
+          diagnostics: "",
+        });
+      return Promise.reject(new Error(`Unexpected command: ${command}`));
+    });
+    await act(async () => root.render(<App />));
+    const inventoryPane = container.querySelector(".inventory-pane")!;
+    expect(
+      inventoryPane.querySelector('[aria-label="Search query"]'),
+    ).toBeNull();
+    expect(inventoryPane.textContent).not.toContain("Install from source");
+
+    const open = Array.from(inventoryPane.querySelectorAll("button")).find(
+      (button) => button.textContent?.includes("Find & install"),
+    ) as HTMLButtonElement;
+    await act(async () => open.click());
+    const dialog = container.querySelector(
+      '[role="dialog"][aria-labelledby="find-install-title"]',
+    )!;
+    expect(dialog.classList.contains("settings-sheet")).toBe(true);
+
+    const search = dialog.querySelector(
+      '[aria-label="Search query"]',
+    ) as HTMLInputElement;
+    await act(async () => {
+      Object.getOwnPropertyDescriptor(
+        HTMLInputElement.prototype,
+        "value",
+      )?.set?.call(search, "found");
+      search.dispatchEvent(new Event("input", { bubbles: true }));
+      search
+        .closest("form")
+        ?.dispatchEvent(
+          new Event("submit", { bubbles: true, cancelable: true }),
+        );
+    });
+    expect(dialog.textContent).toContain("found");
+    const installResult = Array.from(dialog.querySelectorAll("button")).find(
+      (button) => button.textContent === "Install",
+    ) as HTMLButtonElement;
+    await act(async () => installResult.click());
+
+    const source = dialog.querySelector(
+      ".source-install input",
+    ) as HTMLInputElement;
+    await act(async () => {
+      Object.getOwnPropertyDescriptor(
+        HTMLInputElement.prototype,
+        "value",
+      )?.set?.call(source, "another/repo");
+      source.dispatchEvent(new Event("input", { bubbles: true }));
+      source
+        .closest("form")
+        ?.dispatchEvent(
+          new Event("submit", { bubbles: true, cancelable: true }),
+        );
+    });
+    expect(
+      invokeMock.mock.calls.filter(([command]) => command === "add_skill"),
+    ).toEqual([
+      [
+        "add_skill",
+        {
+          source: "owner/repo",
+          skill: "found",
+          settings: { agents: [], copy: false },
+        },
+      ],
+      [
+        "add_skill",
+        {
+          source: "another/repo",
+          skill: null,
+          settings: { agents: [], copy: false },
+        },
+      ],
+    ]);
+
+    await act(async () =>
+      (
+        dialog.querySelector('[aria-label="Close"]') as HTMLButtonElement
+      ).click(),
+    );
+    expect(container.querySelector("#find-install-title")).toBeNull();
   });
 
   it("persists a translation proxy only after valid Apply", async () => {
@@ -127,6 +323,7 @@ describe("CLI-backed workspace", () => {
             version: null,
             nodeVersion: null,
             message: "spawn node failed: os error 2; PATH=/usr/bin",
+            inventory: [],
           })
         : Promise.reject(new Error("blocked")),
     );
@@ -152,6 +349,7 @@ describe("CLI-backed workspace", () => {
             version: null,
             nodeVersion: null,
             message: "raw backend detail",
+            inventory: [],
           })
         : Promise.reject(new Error("blocked")),
     );
@@ -166,22 +364,12 @@ describe("CLI-backed workspace", () => {
       if (command === "runtime_status")
         return Promise.resolve({
           ready: true,
+          errorCode: null,
           version: "1.5.22",
           nodeVersion: "22.20.0",
           message: null,
+          inventory: [{ ...demoSkill, agents: [], source: null }],
         });
-      if (command === "list_skills")
-        return Promise.resolve([
-          {
-            name: "demo",
-            path: "/tmp/demo",
-            scope: "global",
-            agents: [],
-            source: null,
-            sourceUrl: null,
-            sourceType: null,
-          },
-        ]);
       if (command === "preview_tree")
         return Promise.resolve([
           {
@@ -238,26 +426,17 @@ describe("CLI-backed workspace", () => {
   it("keeps original content and retries sanitized translation failures", async () => {
     let translations = 0;
     let resolveStale: ((value: unknown) => void) | undefined;
+    let rejectTranslation: ((value: unknown) => void) | undefined;
     invokeMock.mockImplementation((command: string) => {
       if (command === "runtime_status")
         return Promise.resolve({
           ready: true,
+          errorCode: null,
           version: "1.5.22",
           nodeVersion: "22.20.0",
           message: null,
+          inventory: [{ ...demoSkill, agents: [], source: null }],
         });
-      if (command === "list_skills")
-        return Promise.resolve([
-          {
-            name: "demo",
-            path: "/tmp/demo",
-            scope: "global",
-            agents: [],
-            source: null,
-            sourceUrl: null,
-            sourceType: null,
-          },
-        ]);
       if (command === "preview_tree")
         return Promise.resolve([
           {
@@ -282,9 +461,8 @@ describe("CLI-backed workspace", () => {
       if (command === "translate_preview") {
         translations += 1;
         if (translations === 1)
-          return Promise.reject({
-            code: "translation_timeout",
-            message: "https://translate.googleapis.com/?q=secret",
+          return new Promise((_resolve, reject) => {
+            rejectTranslation = reject;
           });
         if (translations === 2)
           return Promise.resolve({
@@ -308,6 +486,13 @@ describe("CLI-backed workspace", () => {
     ) as HTMLButtonElement;
     await act(async () => translate.click());
     expect(container.textContent).toContain("secret source");
+    expect(container.textContent).toContain("Translating…");
+    await act(async () =>
+      rejectTranslation?.({
+        code: "translation_timeout",
+        message: "https://translate.googleapis.com/?q=secret",
+      }),
+    );
     expect(container.textContent).toContain("Translation timed out");
     expect(container.textContent).not.toContain("translate.googleapis.com");
     const retry = Array.from(container.querySelectorAll("button")).find(

@@ -51,6 +51,7 @@ pub struct RuntimeStatus {
     pub version: Option<String>,
     pub node_version: Option<String>,
     pub message: Option<String>,
+    pub inventory: Vec<InstalledSkill>,
 }
 
 #[derive(Debug, Clone, Deserialize, Serialize, PartialEq, Eq)]
@@ -134,13 +135,14 @@ pub struct CliManager {
 
 impl CliManager {
     pub fn status(&self) -> Result<RuntimeStatus, CommandError> {
-        match self.ensure_session() {
-            Ok(session) => Ok(RuntimeStatus {
+        match self.ensure_session_with_inventory() {
+            Ok((session, inventory)) => Ok(RuntimeStatus {
                 ready: true,
                 error_code: None,
                 version: Some(session.version),
                 node_version: Some(session.node_version),
                 message: None,
+                inventory,
             }),
             Err(error) => Ok(RuntimeStatus {
                 ready: false,
@@ -148,6 +150,7 @@ impl CliManager {
                 version: None,
                 node_version: None,
                 message: Some(error.message),
+                inventory: Vec::new(),
             }),
         }
     }
@@ -155,11 +158,6 @@ impl CliManager {
     pub fn retry(&self) -> Result<RuntimeStatus, CommandError> {
         *lock(&self.session)? = None;
         self.status()
-    }
-
-    pub fn list(&self) -> Result<Vec<InstalledSkill>, CommandError> {
-        let session = self.ensure_session()?;
-        self.list_with(&session)
     }
 
     pub fn search(&self, query: &str) -> Result<Vec<SearchResult>, CommandError> {
@@ -238,9 +236,20 @@ impl CliManager {
     }
 
     fn ensure_session(&self) -> Result<Session, CommandError> {
+        if let Some(session) = lock(&self.session)?.clone() {
+            return Ok(session);
+        }
+        self.ensure_session_with_inventory()
+            .map(|(session, _)| session)
+    }
+
+    fn ensure_session_with_inventory(
+        &self,
+    ) -> Result<(Session, Vec<InstalledSkill>), CommandError> {
         let mut guard = lock(&self.session)?;
         if let Some(session) = guard.clone() {
-            return Ok(session);
+            let inventory = self.list_with(&session)?;
+            return Ok((session, inventory));
         }
         let toolchain = resolve_system_toolchain()?;
         let node = run(&toolchain.node, &["--version"], "runtime probe")?;
@@ -275,9 +284,9 @@ impl CliManager {
             _node: toolchain.node,
             npx: toolchain.npx,
         };
-        self.list_with(&session)?;
+        let inventory = self.list_with(&session)?;
         *guard = Some(session.clone());
-        Ok(session)
+        Ok((session, inventory))
     }
 
     fn list_with(&self, session: &Session) -> Result<Vec<InstalledSkill>, CommandError> {
@@ -598,9 +607,11 @@ mod tests {
             version: None,
             node_version: None,
             message: Some("internal detail".into()),
+            inventory: Vec::new(),
         })
         .unwrap();
         assert_eq!(value["errorCode"], "runtime_not_found");
+        assert_eq!(value["inventory"], serde_json::json!([]));
     }
 
     #[test]

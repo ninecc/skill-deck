@@ -1,5 +1,4 @@
 import {
-  useCallback,
   useEffect,
   useMemo,
   useRef,
@@ -11,7 +10,6 @@ import {
   addSkill,
   commandErrorCode,
   commandErrorMessage,
-  listSkills,
   previewTree,
   readPreview,
   removeSkill,
@@ -70,6 +68,7 @@ export default function App() {
   );
   const [filter, setFilter] = useState("");
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [discoveryOpen, setDiscoveryOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [searchResults, setSearchResults] = useState<SearchResult[]>([]);
   const [source, setSource] = useState("");
@@ -94,15 +93,14 @@ export default function App() {
     setPreferences(next);
   }
 
-  const refresh = useCallback(() => listSkills().then(setInventory), []);
   useEffect(() => {
     void runtimeStatus()
       .then((status) => {
+        setInventory(status.inventory);
         setRuntime(status);
-        if (status.ready) return refresh();
       })
       .catch((value: unknown) => setError(commandErrorMessage(value)));
-  }, [refresh]);
+  }, []);
 
   useEffect(() => {
     savePreferences(preferences);
@@ -210,7 +208,8 @@ export default function App() {
       (skill) =>
         !query ||
         skill.name.toLowerCase().includes(query) ||
-        skill.agents.some((agent) => agent.toLowerCase().includes(query)),
+        skill.source?.toLowerCase().includes(query) ||
+        skill.path.toLowerCase().includes(query),
     );
   }, [filter, inventory]);
 
@@ -354,7 +353,10 @@ export default function App() {
               </small>
             </>
           ) : (
-            <p>{copy.loading}</p>
+            <p className="loading-copy">
+              <span className="spinner" aria-hidden="true" />
+              {copy.loadingSkills}
+            </p>
           )}
           {(runtime || error) && (
             <button
@@ -364,8 +366,8 @@ export default function App() {
                 setError(null);
                 void retryRuntime()
                   .then((status) => {
+                    setInventory(status.inventory);
                     setRuntime(status);
-                    if (status.ready) void refresh();
                   })
                   .catch((value: unknown) =>
                     setError(commandErrorMessage(value)),
@@ -383,6 +385,14 @@ export default function App() {
             <div>
               <h1 id="installed-heading">{copy.installed}</h1>
               <span>{inventory.length}</span>
+              <button
+                type="button"
+                className="find-install-button"
+                onClick={() => setDiscoveryOpen(true)}
+              >
+                <Icon name="search" />
+                {copy.findInstall}
+              </button>
             </div>
             <label className="search-field">
               <Icon name="search" />
@@ -410,110 +420,24 @@ export default function App() {
                 onClick={() => chooseSkill(skill.name)}
               >
                 <strong>{skill.name}</strong>
-                <span>{skill.source ?? skill.path}</span>
-                <span className="tags">
-                  {skill.agents.map((agent) => (
-                    <i key={agent}>{agent}</i>
-                  ))}
+                <span>
+                  {skill.source
+                    ? `${skill.source} · ${skill.path}`
+                    : skill.path}
                 </span>
               </button>
             ))}
           </div>
-          {visible.length === 0 && (
+          {runtime?.ready && inventory.length === 0 && !filter.trim() && (
             <p className="empty-list">{copy.noSkills}</p>
           )}
-          <section className="discovery" aria-labelledby="find-heading">
-            <h2 id="find-heading">{copy.search}</h2>
-            <form
-              onSubmit={(event) => {
-                event.preventDefault();
-                setError(null);
-                void searchSkills(searchQuery)
-                  .then(setSearchResults)
-                  .catch((value: unknown) =>
-                    setError(commandErrorMessage(value)),
-                  );
-              }}
-            >
-              <input
-                value={searchQuery}
-                onChange={(event) => setSearchQuery(event.target.value)}
-                aria-label={copy.searchQuery}
-                required
-              />
-              <button
-                type="submit"
-                className="icon-button"
-                aria-label={copy.search}
-                title={copy.search}
-              >
-                <Icon name="search" />
-              </button>
-            </form>
-            {searchResults.map((result) => (
-              <div className="search-result" key={result.slug}>
-                <span>
-                  <strong>{result.name}</strong>
-                  <small>
-                    {result.source} · {result.installs.toLocaleString()}
-                  </small>
-                </span>
-                <button
-                  type="button"
-                  disabled={busy !== null}
-                  onClick={() =>
-                    perform(
-                      `add-${result.slug}`,
-                      () =>
-                        addSkill(result.source, result.name, {
-                          agents: preferences.agents,
-                          copy: preferences.copy,
-                        }),
-                      copy.inventoryRefreshed,
-                    )
-                  }
-                >
-                  {copy.install}
-                </button>
-              </div>
-            ))}
-            <form
-              className="source-install"
-              onSubmit={(event) => {
-                event.preventDefault();
-                perform(
-                  "add-source",
-                  () =>
-                    addSkill(source, null, {
-                      agents: preferences.agents,
-                      copy: preferences.copy,
-                    }),
-                  copy.inventoryRefreshed,
-                );
-              }}
-            >
-              <label>
-                {copy.installSource}
-                <input
-                  value={source}
-                  onChange={(event) => setSource(event.target.value)}
-                  required
-                />
-              </label>
-              <small>{copy.sourceHint}</small>
-              <button type="submit" disabled={busy !== null}>
-                <Icon name="download" />
-                {copy.install}
-              </button>
-            </form>
-          </section>
+          {runtime?.ready && inventory.length > 0 && visible.length === 0 && (
+            <p className="empty-list">{copy.noMatchingSkills}</p>
+          )}
         </aside>
         <section className="detail-pane" aria-label={copy.preview}>
           {!selected ? (
-            <div className="choose-placeholder">
-              <Icon name="file" />
-              <p>{copy.chooseSkill}</p>
-            </div>
+            <p className="choose-placeholder">{copy.chooseSkill}</p>
           ) : (
             <>
               <div className="detail-toolbar">
@@ -686,7 +610,7 @@ export default function App() {
                     {!currentTranslation ||
                     (currentTranslation.text === undefined &&
                       !currentTranslation.error) ? (
-                      <p>{copy.loading}</p>
+                      <p>{copy.translating}</p>
                     ) : currentTranslation.error ? (
                       <div className="translation-error">
                         <p className="error">{currentTranslation.error}</p>
@@ -714,6 +638,121 @@ export default function App() {
           )}
         </section>
       </div>
+      {discoveryOpen && (
+        <div
+          className="sheet-backdrop"
+          role="presentation"
+          onMouseDown={(event) =>
+            event.target === event.currentTarget && setDiscoveryOpen(false)
+          }
+        >
+          <section
+            className="settings-sheet discovery-sheet"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="find-install-title"
+          >
+            <header>
+              <h2 id="find-install-title">{copy.findInstall}</h2>
+              <button
+                className="icon-button"
+                type="button"
+                onClick={() => setDiscoveryOpen(false)}
+                aria-label={copy.close}
+                title={copy.close}
+              >
+                <Icon name="close" />
+              </button>
+            </header>
+            <section className="discovery" aria-labelledby="find-heading">
+              <h3 id="find-heading">{copy.search}</h3>
+              <form
+                onSubmit={(event) => {
+                  event.preventDefault();
+                  setError(null);
+                  void searchSkills(searchQuery)
+                    .then(setSearchResults)
+                    .catch((value: unknown) =>
+                      setError(commandErrorMessage(value)),
+                    );
+                }}
+              >
+                <input
+                  value={searchQuery}
+                  onChange={(event) => setSearchQuery(event.target.value)}
+                  aria-label={copy.searchQuery}
+                  required
+                />
+                <button
+                  type="submit"
+                  className="icon-button"
+                  aria-label={copy.search}
+                  title={copy.search}
+                >
+                  <Icon name="search" />
+                </button>
+              </form>
+              {error && <p className="error">{error}</p>}
+              {searchResults.map((result) => (
+                <div className="search-result" key={result.slug}>
+                  <span>
+                    <strong>{result.name}</strong>
+                    <small>
+                      {result.source} · {result.installs.toLocaleString()}
+                    </small>
+                  </span>
+                  <button
+                    type="button"
+                    disabled={busy !== null}
+                    onClick={() =>
+                      perform(
+                        `add-${result.slug}`,
+                        () =>
+                          addSkill(result.source, result.name, {
+                            agents: preferences.agents,
+                            copy: preferences.copy,
+                          }),
+                        copy.inventoryRefreshed,
+                      )
+                    }
+                  >
+                    {copy.install}
+                  </button>
+                </div>
+              ))}
+              <form
+                className="source-install"
+                onSubmit={(event) => {
+                  event.preventDefault();
+                  perform(
+                    "add-source",
+                    () =>
+                      addSkill(source, null, {
+                        agents: preferences.agents,
+                        copy: preferences.copy,
+                      }),
+                    copy.inventoryRefreshed,
+                  );
+                }}
+              >
+                <label>
+                  {copy.installSource}
+                  <input
+                    value={source}
+                    onChange={(event) => setSource(event.target.value)}
+                    required
+                  />
+                </label>
+                <small>{copy.sourceHint}</small>
+                <button type="submit" disabled={busy !== null}>
+                  <Icon name="download" />
+                  {copy.install}
+                </button>
+              </form>
+            </section>
+          </section>
+        </div>
+      )}
       {settingsOpen && (
         <SettingsDialog
           copy={copy}
