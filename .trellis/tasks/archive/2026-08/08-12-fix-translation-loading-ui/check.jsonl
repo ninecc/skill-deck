@@ -1,0 +1,5 @@
+{"file":".trellis/spec/frontend/state-management.md","reason":"Verify Skill-scoped translation and stale-request behavior."}
+{"file":".trellis/spec/frontend/quality-guidelines.md","reason":"Verify frontend behavior tests and complete quality gate."}
+{"file":".trellis/spec/backend/command-contracts.md","reason":"Verify 15-second deadline, bounded retry and atomic translation remain compliant."}
+{"file":".trellis/spec/backend/quality-guidelines.md","reason":"Verify Rust tests, clippy and trust-boundary behavior."}
+{"file":".trellis/tasks/08-12-fix-translation-loading-ui/research/diagnosis.md","reason":"Cross-check implementation against reproduced root causes rather than screenshots alone."}

@@ -1,0 +1,7 @@
+{"file":".trellis/spec/frontend/state-management.md","reason":"Defines React-local translation state and generation-token invalidation contracts."}
+{"file":".trellis/spec/frontend/component-guidelines.md","reason":"Constrains the minimal App component and layout change."}
+{"file":".trellis/spec/frontend/quality-guidelines.md","reason":"Defines behavioral frontend tests and required quality commands."}
+{"file":".trellis/spec/backend/command-contracts.md","reason":"Defines translation timeout, proxy, batching, atomicity and error contracts."}
+{"file":".trellis/spec/backend/error-handling.md","reason":"Constrains retryable provider failures and sanitized command errors."}
+{"file":".trellis/spec/backend/quality-guidelines.md","reason":"Defines deterministic backend test and Rust quality requirements."}
+{"file":".trellis/tasks/08-12-fix-translation-loading-ui/research/diagnosis.md","reason":"Contains the reproduced symptoms, ranked hypotheses and feedback loops."}
