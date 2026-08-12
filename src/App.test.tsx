@@ -481,10 +481,13 @@ describe("CLI-backed workspace", () => {
     await act(async () =>
       (container.querySelector('[role="option"]') as HTMLButtonElement).click(),
     );
-    const translate = Array.from(container.querySelectorAll("button")).find(
-      (button) => button.textContent?.includes("Translate"),
-    ) as HTMLButtonElement;
-    await act(async () => translate.click());
+    await act(async () =>
+      (
+        Array.from(container.querySelectorAll("button")).find((button) =>
+          button.textContent?.includes("Translate"),
+        ) as HTMLButtonElement
+      ).click(),
+    );
     expect(container.textContent).toContain("secret source");
     expect(container.textContent).toContain("Translating…");
     await act(async () =>
@@ -527,5 +530,130 @@ describe("CLI-backed workspace", () => {
     );
     await act(async () => setTarget("ja"));
     expect(container.textContent).not.toContain("stale translation");
+  });
+
+  it("ends translation when switching Skills and rejects stale completion", async () => {
+    const translations: {
+      resolve: (value: unknown) => void;
+      reject: (reason?: unknown) => void;
+    }[] = [];
+    invokeMock.mockImplementation(
+      (command: string, args?: { path?: string; skill?: string }) => {
+        if (command === "runtime_status")
+          return Promise.resolve({
+            ready: true,
+            errorCode: null,
+            version: "1.5.22",
+            nodeVersion: "22.20.0",
+            message: null,
+            inventory: [demoSkill, { ...demoSkill, name: "other" }],
+          });
+        if (command === "preview_tree")
+          return Promise.resolve([
+            {
+              path: "SKILL.md",
+              name: "SKILL.md",
+              level: 1,
+              directory: false,
+              size: 12,
+              viewer: "markdown",
+              unsupportedReason: null,
+            },
+            {
+              path: "NOTES.md",
+              name: "NOTES.md",
+              level: 1,
+              directory: false,
+              size: 12,
+              viewer: "markdown",
+              unsupportedReason: null,
+            },
+          ]);
+        if (command === "read_preview")
+          return Promise.resolve({
+            path: args?.path,
+            viewer: "markdown",
+            size: 12,
+            text: `${args?.skill} ${args?.path} source`,
+            dataUrl: null,
+            translatable: true,
+          });
+        if (command === "translate_preview")
+          return new Promise((resolve, reject) => {
+            translations.push({ resolve, reject });
+          });
+        return Promise.reject(new Error(`Unexpected command: ${command}`));
+      },
+    );
+
+    await act(async () => root.render(<App />));
+    const skills =
+      container.querySelectorAll<HTMLButtonElement>('[role="option"]');
+    await act(async () => skills[0].click());
+    const translate = Array.from(container.querySelectorAll("button")).find(
+      (button) => button.textContent?.includes("Translate"),
+    ) as HTMLButtonElement;
+    await act(async () => translate.click());
+    expect(container.textContent).toContain("Translating…");
+
+    await act(async () =>
+      (container.querySelector(".path-button") as HTMLButtonElement).click(),
+    );
+    await act(async () =>
+      (
+        container.querySelector('[data-path="NOTES.md"]') as HTMLButtonElement
+      ).click(),
+    );
+    expect(container.textContent).toContain("demo NOTES.md source");
+    expect(container.querySelector(".viewer-grid.translated")).toBeNull();
+    expect(
+      invokeMock.mock.calls.filter(
+        ([command]) => command === "translate_preview",
+      ),
+    ).toHaveLength(1);
+    await act(async () =>
+      (
+        Array.from(container.querySelectorAll("button")).find((button) =>
+          button.textContent?.includes("Translate"),
+        ) as HTMLButtonElement
+      ).click(),
+    );
+
+    await act(async () => skills[1].click());
+    expect(container.textContent).toContain("other SKILL.md source");
+    expect(container.textContent).not.toContain("Translating…");
+    expect(container.querySelector(".viewer-grid.translated")).toBeNull();
+    expect(
+      Array.from(container.querySelectorAll("button"))
+        .find((button) => button.textContent?.includes("Translate"))
+        ?.getAttribute("aria-pressed"),
+    ).toBe("false");
+    expect(
+      invokeMock.mock.calls.filter(
+        ([command]) => command === "translate_preview",
+      ),
+    ).toHaveLength(2);
+
+    await act(async () => {
+      translations[0].resolve({
+        translatedText: "stale translation",
+        detectedSourceLanguage: "en",
+      });
+      translations[1].reject({
+        code: "translation_timeout",
+        message: "stale timeout",
+      });
+    });
+    expect(container.textContent).not.toContain("stale translation");
+    expect(container.textContent).not.toContain("Translation timed out");
+
+    await act(async () => skills[0].click());
+    expect(container.textContent).toContain("demo SKILL.md source");
+    expect(container.querySelector(".viewer-grid.translated")).toBeNull();
+    expect(
+      invokeMock.mock.calls.filter(
+        ([command]) => command === "translate_preview",
+      ),
+    ).toHaveLength(2);
   });
 });

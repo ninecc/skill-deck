@@ -64,6 +64,10 @@ _Avoid_: System proxy, global network setting, authenticated proxy
 The replaceable boundary that accepts document text and a Translation Target and returns session-only translated text. The MVP implementation sends eligible content to anonymous Google Translate after persistent UI disclosure.
 _Avoid_: Plugin system, credential manager, document writer
 
+**Translation Session**:
+The temporary translated view for the currently selected Translatable Document in one Installed Skill. It ends when translation is closed or the selected Skill or document changes, and is never restored automatically.
+_Avoid_: Translation cache, persisted translation, global translation mode
+
 **Legacy App State**:
 The former Skill Deck Managed Library and lifecycle metadata. The redesigned app neither migrates nor deletes it and never uses it to populate Inventory; a missing Skill may only be reinstalled from its original source.
 _Avoid_: Compatibility inventory, migration source, fallback manager

@@ -154,6 +154,9 @@ translate_preview(
 - A non-empty override affects translation only; it never changes CLI or search.
 - Connect timeout is 5 seconds. All chunks share one 15-second operation
   deadline and receive only its remaining duration.
+- Each provider request gets at most two attempts. An attempt is capped at the
+  smaller of seven seconds and the shared deadline's remaining duration; only
+  connection and timeout failures are retried.
 - Markdown prose fragments are HTML-escaped and packed into indexed inert spans
   within the provider-size bound measured in Unicode characters; an oversized
   fragment is split safely. At most four batches run concurrently; exact
@@ -174,7 +177,8 @@ translate_preview(
 | --- | --- |
 | Empty proxy | automatic environment proxy |
 | More than 2,048 bytes, non-HTTP(S), missing host, path/query/fragment, or credentials | `invalid_proxy` |
-| Connect, request, status, or operation deadline failure | `translation_unavailable` |
+| Connect or HTTP status failure | `translation_unavailable` |
+| Request or operation deadline timeout | `translation_timeout` |
 | Decode, response-shape, or empty-segment failure | `translation_response` |
 
 Provider error strings and query URLs never cross the command boundary.

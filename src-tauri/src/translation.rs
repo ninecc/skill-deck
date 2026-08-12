@@ -13,6 +13,7 @@ const CHUNK_CHARS: usize = 3_500;
 const MAX_PROXY_BYTES: usize = 2_048;
 const CONNECT_TIMEOUT: Duration = Duration::from_secs(5);
 const OPERATION_TIMEOUT: Duration = Duration::from_secs(15);
+const ATTEMPT_TIMEOUT: Duration = Duration::from_secs(7);
 const BATCH_WORKERS: usize = 4;
 const LANGUAGES: &[&str] = &[
     "en", "zh-Hans", "zh-Hant", "ja", "ko", "es", "fr", "de", "pt", "it", "ru", "ar", "hi",
@@ -57,10 +58,10 @@ pub fn translate_installed(
     // ponytail: anonymous endpoint is best-effort; replace this function with a supported provider when quotas or reliability matter.
     let result = if markdown {
         translate_markdown(&text, BATCH_WORKERS, |batch| {
-            google_translate(&client, deadline, batch, provider_target)
+            google_translate(&client, GOOGLE_ENDPOINT, deadline, batch, provider_target)
         })?
     } else {
-        google_translate(&client, deadline, &text, provider_target)?
+        google_translate(&client, GOOGLE_ENDPOINT, deadline, &text, provider_target)?
     };
     Ok(TranslationResult {
         translated_text: result.translated_text,
@@ -135,6 +136,7 @@ fn remaining(deadline: Instant) -> Result<Duration, CommandError> {
 
 fn google_translate(
     client: &reqwest::blocking::Client,
+    endpoint: &str,
     deadline: Instant,
     text: &str,
     target: &str,
@@ -148,30 +150,50 @@ fn google_translate(
     let mut translated = String::new();
     let mut detected = None;
     for chunk in chunks(text, CHUNK_CHARS) {
-        let timeout = remaining(deadline)?;
-        let response = client
-            .get(GOOGLE_ENDPOINT)
-            .query(&[
-                ("client", "gtx"),
-                ("sl", "auto"),
-                ("tl", target),
-                ("dt", "t"),
-                ("q", chunk),
-            ])
-            .timeout(timeout)
-            .send()
-            .and_then(reqwest::blocking::Response::error_for_status)
-            .map_err(|error| {
-                if error.is_timeout() {
-                    CommandError::new(
+        let mut attempt = 0;
+        let value: serde_json::Value = loop {
+            let timeout = remaining(deadline)?.min(ATTEMPT_TIMEOUT);
+            let response = match client
+                .get(endpoint)
+                .query(&[
+                    ("client", "gtx"),
+                    ("sl", "auto"),
+                    ("tl", target),
+                    ("dt", "t"),
+                    ("q", chunk),
+                ])
+                .timeout(timeout)
+                .send()
+            {
+                Ok(response) => response
+                    .error_for_status()
+                    .map_err(|_| provider_unavailable())?,
+                Err(error) if attempt == 0 && (error.is_connect() || error.is_timeout()) => {
+                    attempt += 1;
+                    continue;
+                }
+                Err(error) if error.is_timeout() => {
+                    return Err(CommandError::new(
                         "translation_timeout",
                         "Translation timed out. Check the network or translation proxy and retry.",
-                    )
-                } else {
-                    provider_unavailable()
+                    ));
                 }
-            })?;
-        let value: serde_json::Value = response.json().map_err(|_| incompatible_response())?;
+                Err(_) => return Err(provider_unavailable()),
+            };
+            match response.json() {
+                Ok(value) => break value,
+                Err(error) if attempt == 0 && error.is_timeout() => {
+                    attempt += 1;
+                }
+                Err(error) if error.is_timeout() => {
+                    return Err(CommandError::new(
+                        "translation_timeout",
+                        "Translation timed out. Check the network or translation proxy and retry.",
+                    ));
+                }
+                Err(_) => return Err(incompatible_response()),
+            }
+        };
         let rows = value
             .get(0)
             .and_then(serde_json::Value::as_array)
@@ -569,7 +591,11 @@ fn is_markdown_syntax(byte: u8) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::sync::atomic::AtomicUsize;
+    use std::{
+        io::{Read, Write},
+        net::TcpListener,
+        sync::atomic::AtomicUsize,
+    };
 
     #[test]
     fn chunks_only_at_utf8_boundaries_and_preserves_order() {
@@ -626,6 +652,43 @@ mod tests {
         assert!(!error.message.contains("q="));
         assert_eq!(incompatible_response().code, "translation_response");
         assert!(!incompatible_response().message.contains("Google"));
+    }
+
+    #[test]
+    fn retries_one_timed_out_provider_request_within_the_shared_deadline() {
+        let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+        let endpoint = format!("http://{}/translate", listener.local_addr().unwrap());
+        std::thread::spawn(move || {
+            for attempt in 0..2 {
+                let (mut stream, _) = listener.accept().unwrap();
+                std::thread::spawn(move || {
+                    let mut request = [0; 2_048];
+                    let _ = stream.read(&mut request);
+                    let body = r#"[[["translated","source",null,null,1]],null,"en"]"#;
+                    let headers = format!(
+                        "HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: {}\r\nConnection: close\r\n\r\n",
+                        body.len()
+                    );
+                    let _ = stream.write_all(headers.as_bytes());
+                    if attempt == 0 {
+                        std::thread::sleep(ATTEMPT_TIMEOUT + Duration::from_millis(100));
+                    }
+                    let _ = stream.write_all(body.as_bytes());
+                });
+            }
+        });
+
+        let started = Instant::now();
+        let result = google_translate(
+            &translation_client("").unwrap(),
+            &endpoint,
+            started + OPERATION_TIMEOUT,
+            "source",
+            "es",
+        )
+        .unwrap();
+        assert_eq!(result.translated_text, "translated");
+        assert!(started.elapsed() < OPERATION_TIMEOUT);
     }
 
     #[test]

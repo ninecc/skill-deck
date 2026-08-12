@@ -250,6 +250,8 @@ export default function App() {
     if (!selected || entry.directory) return;
     const request = ++previewRequest.current;
     invalidateTranslation();
+    setTranslationOn(false);
+    setMobilePane("original");
     setTreeOpen(false);
     if (entry.unsupportedReason) {
       setFile({
@@ -277,6 +279,8 @@ export default function App() {
   function chooseSkill(name: string) {
     previewRequest.current += 1;
     invalidateTranslation();
+    setTranslationOn(false);
+    setMobilePane("original");
     setTree([]);
     setFile(null);
     setSelected(name);

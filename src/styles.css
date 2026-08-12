@@ -158,8 +158,14 @@ select:focus-visible {
 .app-shell {
   height: 100vh;
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
   grid-template-rows: 52px auto 1fr;
   overflow: hidden;
+}
+.app-bar,
+.runtime-screen,
+.workspace {
+  grid-column: 1;
 }
 .app-bar {
   display: flex;
