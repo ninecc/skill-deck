@@ -200,3 +200,24 @@ Eliminated duplicate startup Inventory reads, added truthful loading and compact
 ### Status
 
 [OK] **Completed**
+
+
+## Session 10: Fix translation state and loading layout
+
+**Date**: 2026-08-12
+**Task**: Fix translation state and loading layout
+**Branch**: `main`
+
+### Summary
+
+Kept translation within a strict 15-second shared deadline with one bounded transient retry, scoped translation sessions to the selected Skill/document, and stabilized the startup header grid. Added frontend and Rust regressions, updated domain/spec contracts, and verified the release app bundle.
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `7772306` | (see git log) |
+
+### Status
+
+[OK] **Completed**
