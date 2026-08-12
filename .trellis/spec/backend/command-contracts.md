@@ -9,7 +9,7 @@ Every CLI child receives `DO_NOT_TRACK=1`; commands use argument vectors and
 never shell interpolation.
 
 ```text
-runtime_status() -> { ready, version?, nodeVersion?, message? }
+runtime_status() -> { ready, errorCode?, version?, nodeVersion?, message? }
 list_skills() -> InstalledSkill[]
 search_skills(query) -> SearchResult[]
 add_skill(source, skill?, settings) -> CommandResult
@@ -46,13 +46,90 @@ normalizes the DTO but never infers domain state from message text.
 preview_tree(skill) -> FileEntry[]
 read_preview(skill, path) -> FileContent
 reveal_path(skill, path?) -> ()
-translate_preview(skill, path, targetLanguage) -> TranslationResult
+translate_preview(skill, path, targetLanguage, translationProxy) -> TranslationResult
 ```
 
 React supplies an installed Skill name plus a relative path. Rust resolves the
 root only from the current CLI Inventory, rejects absolute/traversing paths,
 does not follow listed links, rechecks containment, and bounds reads. Translation
 reuses the preview reader, accepts only Markdown/plain text and never writes.
+
+Every command whose implementation may launch a process, wait for network I/O,
+walk/read the filesystem, or wait for an OS helper is `async` at the Tauri
+boundary and runs its synchronous implementation through
+`tauri::async_runtime::spawn_blocking`.
+
+On macOS, runtime discovery scans inherited PATH entries first, followed by
+`/opt/homebrew/bin` and `/usr/local/bin`. A candidate directory must contain
+executable sibling `node` and `npx` files. Relative PATH entries are normalized
+to absolute paths, and the selected directory is prepended to CLI child PATH so
+the `npx` shebang resolves its sibling Node. Other platforms use inherited PATH
+only. The selected absolute toolchain and resolved `skills` version remain
+pinned in the successful session.
+
+Runtime discovery failures expose a stable `RuntimeStatus.errorCode`; raw
+spawn, PATH and OS error strings are never included in its user-facing message.
+
+## Scenario: bounded translation networking
+
+### 1. Scope / Trigger
+
+Changing the translation proxy request field or provider timing/error behavior
+is a cross-layer contract change spanning React preferences, the Tauri command,
+and the blocking HTTP client.
+
+### 2. Signatures
+
+```text
+translate_preview(
+  skill: String,
+  path: String,
+  target_language: String,
+  translation_proxy: String,
+) -> Result<TranslationResult, CommandError>
+```
+
+### 3. Contracts
+
+- `translation_proxy == ""` preserves reqwest automatic environment proxies.
+- A non-empty override affects translation only; it never changes CLI or search.
+- Connect timeout is 5 seconds. All chunks share one 15-second operation
+  deadline and receive only its remaining duration.
+- `TranslationResult` is published only after every chunk succeeds; translated
+  content remains session-only.
+
+### 4. Validation & Error Matrix
+
+| Condition | Result |
+| --- | --- |
+| Empty proxy | automatic environment proxy |
+| More than 2,048 bytes, non-HTTP(S), missing host, path/query/fragment, or credentials | `invalid_proxy` |
+| Connect, request, status, or operation deadline failure | `translation_unavailable` |
+| Decode, response-shape, or empty-segment failure | `translation_response` |
+
+Provider error strings and query URLs never cross the command boundary.
+
+### 5. Good/Base/Bad Cases
+
+- Good: `http://127.0.0.1:7890` is applied only to the translation client.
+- Base: empty override uses the existing environment behavior.
+- Bad: `http://user:password@proxy` is rejected before any request.
+
+### 6. Tests Required
+
+- Assert proxy acceptance/rejection and blank override behavior without external
+  network access.
+- Assert later chunks receive the remaining shared deadline and any failed chunk
+  yields no partial `TranslationResult`.
+- Assert every provider failure returns only the stable code and sanitized copy.
+- Assert a blocking command future yields while its worker is pending.
+
+### 7. Wrong vs Correct
+
+```text
+Wrong: one 15-second timeout per chunk; serialize reqwest errors to React.
+Correct: one 15-second operation deadline; return stable sanitized errors.
+```
 
 ## Tests required
 
@@ -63,4 +140,5 @@ reuses the preview reader, accepts only Markdown/plain text and never writes.
 - Preview traversal, links, special files, exact read limits, invalid UTF-8 and
   viewer classification.
 - Translation language eligibility, UTF-8 chunk order, Markdown structure
-  preservation, provider failure and zero writes.
+  preservation, proxy validation, shared deadline, atomic publication,
+  sanitized provider failure and zero writes.

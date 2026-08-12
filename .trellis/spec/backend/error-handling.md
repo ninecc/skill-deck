@@ -12,6 +12,9 @@ code and bounded sanitized diagnostics.
   the actual version and requires a Skill Deck upgrade.
 - Map filesystem errors at the inspected path without including Skill bodies.
 - Translation/search failures stay local to those features.
+- Map every translation-provider connection, timeout, HTTP status, decode and
+  response-shape failure to stable codes and safe copy. Never expose reqwest
+  errors or query URLs because translation text is carried in the query.
 - Use `expect` only for invariants established in the same function. Tauri
   startup may use it because no UI exists yet.
 

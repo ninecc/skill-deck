@@ -56,6 +56,10 @@ _Avoid_: Source code, JSON, YAML, arbitrary binary file
 The provider-neutral target language saved in Settings, initially derived from the system locale and falling back to English when unsupported.
 _Avoid_: UI locale, source language
 
+**Translation Proxy Override**:
+An optional persisted, credential-free HTTP(S) proxy URL used only by the Translation Module. When absent, translation uses the HTTP client's automatic environment proxy behavior.
+_Avoid_: System proxy, global network setting, authenticated proxy
+
 **Translation Module**:
 The replaceable boundary that accepts document text and a Translation Target and returns session-only translated text. The MVP implementation sends eligible content to anonymous Google Translate after persistent UI disclosure.
 _Avoid_: Plugin system, credential manager, document writer

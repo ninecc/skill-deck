@@ -30,6 +30,11 @@ Use this guide when code touches native paths, links, commands, packaging, or
 
 - Local tests validate the current host only. Never claim a Windows or Linux
   native path/link fix from a macOS test run.
+- Desktop apps launched by Finder, Dock, or another GUI shell do not inherit the
+  developer terminal's PATH. For every external runtime, test the packaged
+  binary with a minimal GUI-like PATH; resolve only documented install
+  locations, pin absolute sibling executables, and never source user shell
+  profiles from the app.
 - Keep a focused native CI test at the real boundary. For Windows junctions,
   `projection_contract_smoke` must create, inspect, retarget, restore, and remove
   a real junction before packaging starts.
