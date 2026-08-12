@@ -1,21 +1,19 @@
 # Backend Error Handling
 
-External input failures are data, not panics. `src-tauri/src/skill.rs` models
-them with `SkillErrorCode` plus a serializable `SkillError` containing a stable
-code, message, optional path, and optional limit/observed values.
+External runtime, CLI, network and filesystem failures are structured data.
+`CommandError` carries a stable code and message plus optional operation, exit
+code and bounded sanitized diagnostics.
 
-## Rules
+- Reject empty, oversized, NUL-containing and multiline CLI inputs before
+  process launch.
+- Preserve the operation and exit status for CLI failures; never interpret
+  human stdout as a success protocol.
+- Invalid UTF-8 or JSON fails closed. An incompatible `skills@latest` reports
+  the actual version and requires a Skill Deck upgrade.
+- Map filesystem errors at the inspected path without including Skill bodies.
+- Translation/search failures stay local to those features.
+- Use `expect` only for invariants established in the same function. Tauri
+  startup may use it because no UI exists yet.
 
-- Map I/O errors at the path where they occur; preserve the source error in the
-  human message without exposing Skill file contents.
-- Resource failures must report both the configured limit and the observed
-  value. The UI must not infer these from message text.
-- Use `expect` only for internal invariants already established in the same
-  function. `strip_prefix` in the package walk is the current example.
-- Do not use catch-all string errors, `unwrap` in runtime code, or silent
-  fallbacks at ownership and filesystem boundaries.
-- Tauri startup may use `expect` because failure to create the application is
-  unrecoverable before a UI exists.
-
-Tests should assert stable codes and structured fields; assert full messages
-only when wording is itself part of the contract.
+Tests assert stable codes and structured fields; full wording is asserted only
+when the wording itself is a product contract.

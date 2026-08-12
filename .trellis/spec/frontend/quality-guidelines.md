@@ -1,9 +1,9 @@
 # Frontend Quality Guidelines
 
-Keep the frontend thin: presentation, user confirmation, and accessibility.
-Validation, ownership, filesystem changes, Git, and durable state belong in
-Rust. Do not duplicate Rust rules in form handlers; render structured preflight
-results instead.
+Keep the frontend thin: presentation, confirmation, short-lived Preview state
+and validated UI preferences. CLI validation, mutation truth, filesystem reads
+and provider access belong in Rust. Do not infer lifecycle state from paths or
+diagnostic strings; render refreshed Inventory and structured outcomes.
 
 Core workflow and error strings must exist in both `zh-CN` and `en`. Tests
 should target behavior and contracts rather than snapshots of decorative DOM.

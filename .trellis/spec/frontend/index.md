@@ -1,8 +1,8 @@
 # Frontend Development Guidelines
 
 The frontend is the strict TypeScript React application under `src/`. It
-renders command DTOs and short-lived interaction state; Rust remains the
-persistent source of truth.
+renders command DTOs and short-lived interaction state; the upstream CLI
+Inventory remains lifecycle truth and only validated UI preferences persist.
 
 ## Pre-Development Checklist
 

@@ -1,3 +1,7 @@
+---
+status: superseded by ADR-0011
+---
+
 # Separate Package and Installation Lifecycles
 
 A Managed Skill Package is a stable entity that may have zero or more Agent-specific Installations, all independently enabled or disabled but sharing one Installed Revision. Add to Library creates a zero-Installation package, Uninstall removes one Installation, and Remove from Library permanently deletes only a zero-Installation package after export is offered and the name is confirmed. Content Drift is resolved explicitly by restoring or detaching, and each successful revision change retains one Previous Revision; rollback swaps current and previous so one-step redo remains possible without unbounded history.

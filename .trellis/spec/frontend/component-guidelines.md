@@ -14,13 +14,15 @@ a select so keyboard behavior exists without extra code.
 - A disabled or unavailable domain action must expose the reason in text, not
   only color.
 
-Do not render untrusted Skill Markdown as HTML. Display structured metadata and
-paths as text unless a separately reviewed sanitizer is introduced.
+Render untrusted Markdown through `react-markdown` with raw HTML disabled.
+Override links and images so Preview cannot navigate or trigger remote resource
+loads. Code/plain text stays in a read-only `<pre>`.
 
-## Inventory identity and diagnostics
+## Inventory and Preview
 
-Inventory row headings identify the Skill and must not be replaced by a status
-such as `Needs attention`. For an invalid external entry, use the final path
-component as the fallback name, render the diagnostic state as an adjacent
-badge, and keep the localized reason and logical path as separate text. This
-keeps search results and row identity stable while preserving the full error.
+Inventory row headings identify the CLI-listed Skill. Start with no selection;
+Arrow keys move focus while click/Enter selects. Use `aria-selected`, selected
+fill and an accent edge without visible `Selected` text. The file popover has no
+root row, begins at `aria-level="1"`, retains full slash paths in accessible
+names/data, and supports keyboard selection. Unsupported files remain selectable
+so their type/size state and Reveal action are available.

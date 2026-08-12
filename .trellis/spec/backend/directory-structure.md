@@ -1,19 +1,16 @@
 # Backend Directory Structure
 
-## Runtime boundary
-
-- `src-tauri/src/lib.rs` is the Tauri boundary. Commands deserialize input,
-  call a domain function, and serialize its result. Do not put traversal,
-  ownership, or transaction rules in a command handler.
-- `src-tauri/src/skill.rs` is the current deep module for Skill package
-  validation. It owns the metadata, resource observation, structured error,
-  and tests so the trust-boundary rules cannot diverge across callers.
+- `src-tauri/src/lib.rs` is the thin Tauri command boundary.
+- `src-tauri/src/cli.rs` owns runtime discovery, the pinned CLI session,
+  machine-readable Inventory, search, argv construction, mutation serialization
+  and post-command refresh.
+- `src-tauri/src/preview.rs` owns installed-root lookup, containment, file-tree
+  walking, bounded reads, viewer classification and native file-manager reveal.
+- `src-tauri/src/translation.rs` owns the provider request/response and Markdown
+  segmentation. Keep its exported boundary provider-neutral without adding a
+  one-implementation trait, factory or plugin registry.
 - `src-tauri/src/main.rs` only starts the library entry point.
 
-Add a module only when it owns a real domain seam such as Agent configuration,
-persisted state, or transactions. Do not add one-interface/one-implementation
-layers or a generic plugin framework.
-
-Rust files and modules use `snake_case`; serializable Rust DTOs use
-`UpperCamelCase` and `#[serde(rename_all = "camelCase")]` at the frontend
-boundary, as demonstrated by `ValidatedSkill` and `AppInfo`.
+Rust files use `snake_case`; serializable DTOs use `UpperCamelCase` and
+`#[serde(rename_all = "camelCase")]`. Do not recreate state, ownership,
+configuration, Git, revision or reconciliation modules beside the CLI.

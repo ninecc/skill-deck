@@ -1,12 +1,14 @@
 # Frontend State Management
 
-Use React local state for short-lived UI choices such as the locale selector in
-`App.tsx`. Do not add a global state library or client-side persistence layer.
+Use React local state for Inventory, selection, Preview, translation and dialog
+state. Do not add a global state library.
 
-Inventory and operation results come from typed Tauri commands. Refresh them
-from Rust after each committed operation rather than mutating a second durable
-copy in React. Derived filters and counts should be computed from the current
-inventory response.
+Only UI preferences persist in localStorage: locale, one theme preset, target
+language, optional Agent overrides and automatic/copy install mode. Validate
+stored values against the closed UI option lists. Inventory and translation
+content are never persisted.
 
-The locale preference may be persisted when settings are implemented, but the
-static catalogs in `src/i18n.ts` remain the only source for user-facing strings.
+Inventory and mutation results come from typed Tauri commands. Replace the
+current Inventory with every refreshed response rather than reconstructing
+CLI state in React. Derive filters and counts from that response. Theme token
+changes must not remount or reset selection, Preview, translation or scroll.

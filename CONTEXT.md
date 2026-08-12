@@ -1,6 +1,6 @@
 # Skill Deck
 
-Skill Deck manages user-owned Agent Skills across supported AI coding agents while preserving the user's existing files.
+Skill Deck is a desktop GUI over the upstream Skills CLI. The CLI owns installed Skill lifecycle state; Skill Deck adds bounded read-only preview and translation.
 
 ## Language
 
@@ -13,197 +13,53 @@ A directory whose root contains a valid `SKILL.md` and whose remaining files bel
 _Avoid_: Plugin, extension, script
 
 **Agent Target**:
-A supported AI coding agent and its user-level Skill scope, currently Codex or Claude Code.
-_Avoid_: Platform, provider, runtime
-
-**Agent Projection Contract**:
-The Agent Target-specific user-level Skill root, configuration shape, and native linked-installation behavior that Skill Deck must preserve. It does not prove that an Agent runtime loaded or invoked a Skill.
-_Avoid_: Agent runtime test, end-to-end Agent test, Host Contract
-
-**Agent Runtime Recognition**:
-Evidence that an installed Agent runtime discovers a projected Skill after launch. It does not prove reliable triggering or task success.
-_Avoid_: Agent Projection Contract, Skill invocation, Skill effectiveness
-
-**Agent Root Artifact**:
-A known non-Skill file or container owned by an Agent Target or the operating system inside an official user-level Skill root; it is excluded from inventory and diagnostics.
-_Avoid_: External Installation, invalid Skill, ignored Skill
-
-**Unexpected Agent Root Entry**:
-An unrecognized file or special entry that cannot structurally be a Skill Package but is retained for diagnosis without being treated as an Installation.
-_Avoid_: External Installation, Agent Root Artifact, invalid Skill
+A global-scope AI coding agent supported by the upstream Skills CLI. Agent identifiers are an open upstream vocabulary; explicit overrides are limited to Skill Deck's verified list.
+_Avoid_: Platform, provider, runtime, Codex-or-Claude enum
 
 **Inventory**:
-The current normalized view of Managed Skill Packages, Installations, supported Agent Targets, and entries requiring attention; known Agent Root Artifacts are excluded.
-_Avoid_: Directory listing, registry, persisted state
+The current read-only list of global Installed Skills returned by `skills list -g --json`. Skill Deck refreshes it after every management command and never persists it as app-owned lifecycle state.
+_Avoid_: Directory scan, registry, Managed Library, Skill Deck state
 
-**Needs Attention**:
-The inventory summary category for Broken External Installations, Invalid Installation Candidates, and Unexpected Agent Root Entries; it is a presentation aggregate, not a replacement for their distinct domain types.
-_Avoid_: Invalid Installation, External Installation count, risk score
+**Installed Skill**:
+A global Skill Package reported by the upstream Skills CLI, together with its canonical path, source metadata, and current Agent Target names.
+_Avoid_: Managed Skill Package, Installation record, local package
 
-**Management Scope**:
-The inventory filter that separates Managed Skill Packages from entries outside the Managed Library; the outside scope includes External Installations, Broken External Installations, and Invalid Installation Candidates.
-_Avoid_: Ownership, source, External-only filter
+**CLI Override**:
+An optional preference that adds an explicit upstream CLI flag. When absent, Skill Deck omits the flag and preserves the CLI's automatic behavior.
+_Avoid_: Skill Deck policy, CLI default copy
 
-**Installation**:
-A Skill Package present in one Agent Target's official user-level Skill directory.
-_Avoid_: Skill, copy, deployment
+**Theme Preference**:
+One persisted UI preset selected from `system`, `light`, `dark`, `sand`, or `plum`. `system` is the default and resolves live to the Light or Dark token map; every other preset is a complete fixed visual theme, not a second palette layered over a mode.
+_Avoid_: CLI Override, separate mode/palette pair, custom palette, UI locale
 
-**Deployment Mode**:
-The recorded mechanism by which an Installation exposes its Managed Skill Package content to an Agent Target.
-_Avoid_: Installation type, source type
+**CLI Session Version**:
+The exact Skills CLI version resolved from `skills@latest` once when the app starts and reused for every command until that app session ends.
+_Avoid_: Permanently pinned version, resolve latest per command
 
-**Linked Installation**:
-An Installation whose Agent Target entry is a Skill Deck-owned symlink or junction resolving into the Managed Library.
-_Avoid_: Linked Skill, external link
+**Command Outcome**:
+The result of an add, remove, or update operation determined from the refreshed Inventory where that state is observable, with exit status and sanitized CLI output retained as diagnostics. Update completion never claims a content revision that Inventory cannot prove.
+_Avoid_: Exit-code success, terminal-output parsing
 
-**Copied Installation**:
-An Installation whose Agent Target entry is a Skill Deck-owned standalone copy of the Installed Revision.
-_Avoid_: Local Skill, unmanaged copy
+**Whole-Skill Removal**:
+Removal of one global Installed Skill from all of its Agent Targets after explicit confirmation.
+_Avoid_: Per-Agent uninstall, Remove from Library
 
-**Copy Fallback**:
-The user's explicit choice to create a Copied Installation after a Linked Installation cannot be created.
-_Avoid_: Automatic fallback, degraded mode
+**Preview Session**:
+The in-memory read-only view of one Installed Skill's bounded file tree and selected file. It never edits Skill content or follows links outside the Installed Skill root.
+_Avoid_: Editor, file manager, persisted workspace
 
-**Managed Skill Package**:
-A stable, user-visible Skill Package entity whose lifecycle Skill Deck is authorized to manage; changing its Installed Revision does not change its identity.
-_Avoid_: Managed Skill, owned Skill, registered Skill
+**Translatable Document**:
+A Markdown or plain-text documentation file eligible for read-only translation. Markdown frontmatter, code, URLs, and structure remain unchanged while natural-language prose may be sent for translation.
+_Avoid_: Source code, JSON, YAML, arbitrary binary file
 
-**External Installation**:
-An Installation discovered in an Agent Target but not authorized for mutation by Skill Deck.
-_Avoid_: External Skill, unmanaged Skill, unknown Skill
+**Translation Target**:
+The provider-neutral target language saved in Settings, initially derived from the system locale and falling back to English when unsupported.
+_Avoid_: UI locale, source language
 
-**Legacy External Installation**:
-An External Installation discovered in an Agent Target's deprecated compatibility Skill root.
-_Avoid_: External Installation, Managed Skill Package
+**Translation Module**:
+The replaceable boundary that accepts document text and a Translation Target and returns session-only translated text. The MVP implementation sends eligible content to anonymous Google Translate after persistent UI disclosure.
+_Avoid_: Plugin system, credential manager, document writer
 
-**Legacy Migration**:
-The import of a Legacy External Installation into the Managed Library without creating a current-root Installation until the legacy entry is removed externally.
-_Avoid_: Adoption, move, automatic migration
-
-**Broken External Installation**:
-An external link entry whose link topology is missing, cyclic, escapes the allowed root, or is otherwise unsafe to resolve.
-_Avoid_: Invalid Installation Candidate, External Installation, Content Drift
-
-**Invalid Installation Candidate**:
-A directory or safely resolved external link in an Agent Target's Skill root that occupies an installation position but fails Structural Validation and therefore is not yet an Installation; it remains read-only and cannot be adopted until it validates successfully.
-_Avoid_: External Installation, Broken External Installation, Unexpected Agent Root Entry
-
-**Adoption**:
-The user's explicit grant of lifecycle control over an External Installation to Skill Deck, creating or attaching it to a Managed Skill Package.
-_Avoid_: Import, claim, register
-
-**Skill Source**:
-The stable provenance from which a Managed Skill Package obtains revisions; it does not include a particular content revision.
-_Avoid_: Source revision, origin
-
-**Local Skill Source**:
-A local directory captured as an immutable import snapshot; later edits to the original directory are not synchronized.
-_Avoid_: Watched folder, linked source
-
-**Git Skill Source**:
-A public HTTPS repository URL, Skill subpath, and tracked branch that identify stable Git provenance.
-_Avoid_: Git URL, repository, Git revision
-
-**Installed Revision**:
-The exact content snapshot currently held by a Managed Skill Package; a Git-backed revision includes its commit OID.
-_Avoid_: Skill version, Source, release
-
-**Previous Revision**:
-The single Installed Revision immediately preceding the current one and retained for one explicit rollback.
-_Avoid_: Revision history, backup
-
-**Roll Back Revision**:
-The explicit replacement of the current Installed Revision and all its Installations with the Previous Revision.
-_Avoid_: Restore Installation, downgrade, undo
-
-**Managed Library**:
-Skill Deck's app-owned storage for Managed Skill Packages and retained revisions, before content is installed into an Agent Target.
-_Avoid_: Agent directory, repository, cache
-
-**Add to Library**:
-The import of a Managed Skill Package with zero Agent Target Installations.
-_Avoid_: Install, Adoption
-
-**Resource Boundary**:
-An explainable and testable limit applied to an untrusted Skill Source before content may enter the Managed Library.
-_Avoid_: Security scan, risk score, quota
-
-**Configuration Provenance**:
-The recorded creator of an Agent Target configuration state, distinguishing Skill Deck changes from pre-existing user or third-party changes.
-_Avoid_: Configuration ownership, config history
-
-**Externally Controlled Configuration**:
-An Installation configuration state created by the user or a third party that Skill Deck may report but must not modify.
-_Avoid_: Configuration Drift, unmanaged configuration
-
-**Configuration Drift**:
-An external change to configuration previously created and controlled by Skill Deck.
-_Avoid_: Externally Controlled Configuration, Content Drift
-
-**Structural Validation**:
-A deterministic check that a directory satisfies the installable Skill Package contract.
-_Avoid_: Security scan, safety check
-
-**Capability Disclosure**:
-A factual inventory of scripts, declared tools, references, and unknown fields contained in a Skill Package.
-_Avoid_: Risk score, safety result
-
-**Change Disclosure**:
-A factual comparison of capabilities between an installed Git revision and an available update.
-_Avoid_: Changelog, security report
-
-**Content Drift**:
-A difference between an Installation's current content and its Managed Skill Package's Installed Revision.
-_Avoid_: Dirty state, local changes, corruption
-
-**Broken Managed Installation**:
-A Managed Installation whose recorded library, deployment shape, link topology, or installed structure cannot be safely reconciled into a more specific recoverable status.
-_Avoid_: Broken External Installation, Content Drift, Retargeted Installation
-
-**Installation Status**:
-The single highest-priority reconciliation result for a Managed Installation: Healthy, Missing, Retargeted, Content Drift, Configuration Drift, or Broken Managed Installation. It carries factual reconciliation evidence and the currently available ownership-safe actions, and may defer lower-priority checks until the next inventory refresh.
-_Avoid_: Health score, exhaustive issue list, risk level
-
-**Reconciliation Evidence**:
-The expected and observed paths, deployment mode, targets, fingerprints, or configuration provenance that explain an Installation Status without certifying safety.
-_Avoid_: Error message, risk score, authorization
-
-**Source Diverged**:
-The state in which a Git Skill Source's remote tracked branch cannot fast-forward from the Installed Revision.
-_Avoid_: Update available, conflict
-
-**Source Unreachable**:
-A temporary inability to contact or read a Git Skill Source.
-_Avoid_: Source Missing, Source Diverged
-
-**Source Missing**:
-The state in which a Git Skill Source is reachable but its tracked branch or Skill subpath no longer exists.
-_Avoid_: Source Unreachable, Source Diverged
-
-**Read-only Recovery**:
-An application mode that prevents lifecycle changes because Skill Deck cannot establish reliable ownership from its persisted state.
-_Avoid_: Safe mode, automatic recovery
-
-**Orphaned Package**:
-App-owned Skill Package content found during Read-only Recovery without a trustworthy Managed Skill Package record.
-_Avoid_: Managed Skill Package, External Installation
-
-**Restore Installation**:
-The explicit recreation of a missing Installation or replacement of a drifted Installation from its Managed Skill Package's Installed Revision.
-_Avoid_: Update, reset, Recreate Installation
-
-**Detach Installation**:
-The removal of an Installation from a Managed Skill Package while preserving its content as a standalone External Installation; a linked entry is converted to a copy first.
-_Avoid_: Uninstall, delete, abandon
-
-**Forget Installation**:
-The removal of Skill Deck's persisted Installation record without changing the observed Agent Target path, target content, or configuration. It is an explicit ownership escape hatch for a Missing, Retargeted, or Broken Installation that cannot or should not be safely restored.
-_Avoid_: Detach Installation, Uninstall, Forget Configuration, delete
-
-**Uninstall**:
-The removal of one Installation from an Agent Target without removing its Managed Skill Package from Skill Deck.
-_Avoid_: Delete Skill, remove from library
-
-**Remove from Library**:
-The deletion of a zero-Installation Managed Skill Package, including its app-owned content and Skill Source record.
-_Avoid_: Uninstall, delete Installation
+**Legacy App State**:
+The former Skill Deck Managed Library and lifecycle metadata. The redesigned app neither migrates nor deletes it and never uses it to populate Inventory; a missing Skill may only be reinstalled from its original source.
+_Avoid_: Compatibility inventory, migration source, fallback manager

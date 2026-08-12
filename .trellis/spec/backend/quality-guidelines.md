@@ -2,27 +2,23 @@
 
 ## Trust boundaries
 
-Every Skill Source is untrusted. Validate before content enters Managed
-Library storage. The reference implementation is `validate_skill_dir` in
-`src-tauri/src/skill.rs`:
+The upstream CLI owns installation validation and mutation. Skill Deck must not
+recreate its ownership or package model. Its own boundaries remain strict:
 
-- inspect with `symlink_metadata` and never follow package links;
-- reject special files;
-- enforce count and byte limits while walking, before reading content;
-- parse frontmatter once and return typed metadata plus deterministic
-  structural disclosure;
-- keep fixed production limits in one policy and inject smaller policies only
-  inside tests.
+- invoke `node`/`npx` without a shell and pass every input as one argument;
+- structurally decode JSON and keep Agent values open strings;
+- derive preview roots only from current CLI Inventory;
+- walk with `symlink_metadata`, list but never follow links, reject special-file
+  reads and absolute/parent paths, and enforce byte limits while reading;
+- allow translation only through the bounded preview reader and never write
+  translated content.
 
-Do not simplify away validation, atomicity, ownership checks, or error paths.
-Do not execute Skill scripts or assign safety labels.
+Do not execute Skill scripts, parse human CLI tables, or add a fallback manager.
 
 ## Tests and verification
 
 Non-trivial branches need a focused unit or integration test. Boundary tests
-must cover exact-limit acceptance and one-over rejection without allocating
-production-sized fixtures; `reports_exact_resource_limit_and_observation` is
-the pattern.
+cover exact-limit acceptance and one-over rejection with small injected limits.
 
 Required commands:
 

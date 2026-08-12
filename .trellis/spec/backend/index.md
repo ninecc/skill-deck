@@ -1,8 +1,8 @@
 # Backend Development Guidelines
 
-The backend is the Rust crate under `src-tauri/`. It owns every filesystem,
-validation, state, Agent configuration, and Git operation. React receives only
-serializable command DTOs.
+The backend is the Rust crate under `src-tauri/`. It owns safe CLI execution,
+the session-pinned upstream version, Inventory refresh, preview containment and
+translation provider access. React receives only serializable command DTOs.
 
 ## Pre-Development Checklist
 
@@ -13,7 +13,7 @@ Read the guides that match the change:
 - [Quality](./quality-guidelines.md) for trust-boundary and test requirements.
 - [Logging](./logging-guidelines.md) before adding diagnostics.
 - [Desktop Command Contracts](./command-contracts.md) for Tauri DTOs,
-  previews, commits, cancellation, and cross-layer error behavior.
+  CLI mutations, preview/translation and cross-layer error behavior.
 
 Then run `cargo fmt`, `cargo clippy -- -D warnings`, and `cargo test` with the
 manifest at `src-tauri/Cargo.toml`.
