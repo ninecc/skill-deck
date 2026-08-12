@@ -1,0 +1,3 @@
+# Make Application Commands the single behavior authority
+
+Every user-invokable Skill Deck behavior is owned by one Application Command that defines structured availability, execution and lifecycle; Toolbar, native menu, shortcut and Context Menu are presentation adapters that dispatch the same command ID. The frontend Command Registry is authoritative because availability depends on live UI state, while the Dispatcher revalidates before execution and synchronizes native-menu enabled state. Platform Role Commands remain native/predefined rather than being copied into React, and a running Command outlives any modal surface that initiated it, avoiding duplicated rules and false cancellation semantics.

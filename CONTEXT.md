@@ -29,8 +29,20 @@ An optional preference that adds an explicit upstream CLI flag. When absent, Ski
 _Avoid_: Skill Deck policy, CLI default copy
 
 **Theme Preference**:
-One persisted UI preset selected from `system`, `light`, `dark`, `sand`, or `plum`. `system` is the default and resolves live to the Light or Dark token map; every other preset is a complete fixed visual theme, not a second palette layered over a mode.
-_Avoid_: CLI Override, separate mode/palette pair, custom palette, UI locale
+One persisted application-identity preset selected from `system`, `light`, `dark`, `sand`, or `plum`. It controls custom surfaces and the Theme Accent through semantic tokens; native platform affordances retain their system appearance and System Accent where the platform and WebView support it.
+_Avoid_: CLI Override, separate mode/palette pair, System Accent override, custom palette, UI locale
+
+**UI Language Preference**:
+An application-level preference that follows the system locale by default or stores one explicit supported locale override. It changes Skill Deck's interface language immediately and is independent of the Translation Target.
+_Avoid_: Toolbar command, Translation Target, per-window locale
+
+**Effective UI Locale**:
+The supported BCP 47 locale currently used to render Skill Deck. It is derived from the UI Language Preference and the runtime's reported preferred languages without rewriting the stored user intent.
+_Avoid_: Raw navigator language, Translation Target, persisted system locale
+
+**Application Command**:
+A user-invokable Skill Deck behavior with one identity, availability result, execution path and lifecycle, independent of whether it is presented by a Toolbar, menu, shortcut or Context Menu.
+_Avoid_: Button handler, menu-only action, duplicated surface action
 
 **CLI Session Version**:
 The exact Skills CLI version resolved from `skills@latest` once when the app starts and reused for every command until that app session ends.

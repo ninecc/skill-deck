@@ -1,0 +1,8 @@
+{"file":".trellis/spec/frontend/index.md","reason":"Frontend verification scope and complete quality gate."}
+{"file":".trellis/spec/frontend/component-guidelines.md","reason":"Check semantics, accessibility, keyboard behavior, and Preview safety."}
+{"file":".trellis/spec/frontend/quality-guidelines.md","reason":"Check presentation boundaries, localization, and all required commands."}
+{"file":".trellis/tasks/08-12-tauri-desktop-ui-ux-refactor/research/ui-ux-audit.md","reason":"Check every P0-P3 finding and platform-specific regression risk."}
+{"file":"docs/adr/0012-use-a-single-window-utility-command-model.md","reason":"Verify no accidental document/new-window behavior or Cmd/Ctrl+N overload."}
+{"file":"docs/adr/0013-share-commands-and-adapt-their-platform-presentation.md","reason":"Verify shared command semantics and platform-adapted presentation."}
+{"file":"docs/adr/0014-separate-theme-accent-from-system-accent.md","reason":"Verify product theme tokens do not override native System Accent."}
+{"file":"docs/adr/0015-make-application-commands-the-single-behavior-authority.md","reason":"Verify no UI surface bypasses or duplicates command authority."}

@@ -1,0 +1,9 @@
+{"file":".trellis/spec/frontend/index.md","reason":"Frontend scope, required quality gates, and relevant guideline routing."}
+{"file":".trellis/spec/frontend/component-guidelines.md","reason":"Semantic controls, accessibility, Preview safety, and keyboard interaction contracts."}
+{"file":".trellis/spec/frontend/state-management.md","reason":"Preserve local UI state and translation generation-token behavior during layout changes."}
+{"file":".trellis/spec/frontend/quality-guidelines.md","reason":"Thin frontend boundary, localization, and required verification commands."}
+{"file":".trellis/tasks/08-12-tauri-desktop-ui-ux-refactor/research/ui-ux-audit.md","reason":"Prioritized cross-platform UI/UX findings and three-skill validation criteria."}
+{"file":"docs/adr/0012-use-a-single-window-utility-command-model.md","reason":"Preserve the approved single-window command and shortcut boundary."}
+{"file":"docs/adr/0013-share-commands-and-adapt-their-platform-presentation.md","reason":"Implement one Command Model with platform-adapted menu presentation."}
+{"file":"docs/adr/0014-separate-theme-accent-from-system-accent.md","reason":"Keep custom Theme Accent separate from native System Accent."}
+{"file":"docs/adr/0015-make-application-commands-the-single-behavior-authority.md","reason":"Implement all user entry points as adapters over one command authority."}
