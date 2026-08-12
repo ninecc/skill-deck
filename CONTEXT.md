@@ -29,8 +29,16 @@ An optional preference that adds an explicit upstream CLI flag. When absent, Ski
 _Avoid_: Skill Deck policy, CLI default copy
 
 **Theme Preference**:
-One persisted application-identity preset selected from `system`, `light`, `dark`, `sand`, or `plum`. It controls custom surfaces and the Theme Accent through semantic tokens; native platform affordances retain their system appearance and System Accent where the platform and WebView support it.
-_Avoid_: CLI Override, separate mode/palette pair, System Accent override, custom palette, UI locale
+The Skill Consumer's persisted intent for how Skill Deck should present its application appearance. The current runtime schema is `system | light | dark | sand | plum`; that enum is an implementation fact requiring explicit migration to change, not a permanent visual baseline or taxonomy. Theme Preference is distinct from native System Accent and from an Approved Visual Direction.
+_Avoid_: CLI Override, System Accent override, visual baseline, UI locale
+
+**Approved Visual Direction**:
+A task-scoped visual direction whose identity, UI scope, and platform scope the user has unambiguously approved as authoritative for implementation, subordinate to product, accessibility, platform-behavior, and architectural contracts. It remains durable beyond that task only when promoted into an active specification or ADR.
+_Avoid_: Current UI, visual baseline inferred from code, vague approval, automatic skill recommendation
+
+**Historical Visual Direction**:
+A prior visual choice retained as project history but carrying no default authority over future design, including its palettes, tokens, typography, layout composition, brand assets, and component styling. It may still provide explicitly cited behavioral, accessibility, or counterexample evidence.
+_Avoid_: Legacy App State, Approved Visual Direction, current product contract
 
 **UI Language Preference**:
 An application-level preference that follows the system locale by default or stores one explicit supported locale override. It changes Skill Deck's interface language immediately and is independent of the Translation Target.

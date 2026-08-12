@@ -9,8 +9,10 @@
   defaults; `src/icons.tsx` contains the small offline Phosphor icon set.
 - `src/i18n.ts` is the single static catalog and locale resolver.
 - colocate small tests with the source (`src/i18n.test.ts`).
-- `src/styles.css` contains the semantic theme-token visual system. Do not
-  add CSS-in-JS, Tailwind, or a component library without a demonstrated need.
+- `src/styles.css` contains the current semantic theme-token implementation.
+  Its token taxonomy and visual values are implementation state, not a visual
+  baseline. Do not add CSS-in-JS, Tailwind, or a component library without a
+  demonstrated need.
 
 Use `PascalCase.tsx` for components and lowercase descriptive names for plain
 TypeScript modules. Keep arbitrary filesystem roots and lifecycle inference out
