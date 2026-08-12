@@ -1,75 +1,45 @@
-import { useCallback, useEffect, useState } from "react";
 import {
-  cancelStaging,
-  commandErrorCode,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type ComponentProps,
+} from "react";
+import ReactMarkdown from "react-markdown";
+import {
+  addSkill,
   commandErrorMessage,
-  commitConfiguration,
-  inventoryDiagnosticMessage,
-  loadInventory,
-  loadStateStatus,
-  planConfiguration,
-  resolveConfiguration,
-  type AttentionEntry,
-  type ExternalInstallation,
-  type Inventory,
-  type ManagedInstallationAction,
-  type ManagedInstallationReconciliation,
-  type ManagedPackageAction,
-  type ManagedSkillPackage,
-  type StateStatus,
+  listSkills,
+  previewTree,
+  readPreview,
+  removeSkill,
+  retryRuntime,
+  revealPath,
+  runtimeStatus,
+  searchSkills,
+  translatePreview,
+  updateSkill,
+  type FileContent,
+  type FileEntry,
+  type InstalledSkill,
+  type RuntimeStatus,
+  type SearchResult,
 } from "./api";
-import AdoptionDialog from "./AdoptionDialog";
-import GitUpdateDialog from "./GitUpdateDialog";
-import ImportDialog from "./ImportDialog";
-import InstallDialog from "./InstallDialog";
-import LifecycleDialog, { type LifecycleAction } from "./LifecycleDialog";
-import RevisionDialog, { type RevisionAction } from "./RevisionDialog";
-import { catalogs, preferredLocale, type Locale, type Messages } from "./i18n";
+import { Icon } from "./icons";
+import { catalogs, preferredLocale, type Locale } from "./i18n";
+import {
+  loadPreferences,
+  resolvedTheme,
+  savePreferences,
+  type Preferences,
+} from "./preferences";
 import SettingsDialog from "./SettingsDialog";
 
-function inventoryEntryName(logicalPath: string, skillName?: string) {
-  return (
-    skillName ??
-    logicalPath.split(/[\\/]/).filter(Boolean).at(-1) ??
-    logicalPath
-  );
-}
-
-function attentionLabel(entry: AttentionEntry, copy: Messages) {
-  switch (entry.kind) {
-    case "broken_external_installation":
-      return copy.brokenExternalInstallation;
-    case "invalid_installation_candidate":
-      return copy.invalidInstallationCandidate;
-    case "unexpected_agent_root_entry":
-      return copy.unexpectedAgentRootEntry;
-  }
-}
-
-function managedStatusLabel(
-  status: ManagedInstallationReconciliation["status"],
-  copy: Messages,
-) {
-  switch (status) {
-    case "healthy":
-    case "missing":
-    case "retargeted":
-    case "drifted":
-    case "configuration_drift":
-    case "broken":
-      return copy[`status_${status}`];
-    default:
-      return unreachable(status);
-  }
-}
-
-function shortFingerprint(value: string) {
-  return value.slice(0, 12);
-}
-
-function unreachable(value: never): never {
-  throw new Error(`Unexpected backend enum value: ${String(value)}`);
-}
+const markdownComponents: ComponentProps<typeof ReactMarkdown>["components"] = {
+  a: ({ children }) => <span>{children}</span>,
+  img: ({ alt }) => <span>{alt ?? ""}</span>,
+};
 
 export default function App() {
   const [locale, setLocale] = useState<Locale>(() =>
@@ -79,827 +49,631 @@ export default function App() {
     ),
   );
   const copy = catalogs[locale];
-  const [inventory, setInventory] = useState<Inventory | null>(null);
-  const [stateStatus, setStateStatus] = useState<StateStatus | null>(null);
-  const [inventoryError, setInventoryError] = useState<{
-    value: unknown;
+  const [preferences, setPreferences] = useState<Preferences>(() =>
+    loadPreferences(),
+  );
+  const [runtime, setRuntime] = useState<RuntimeStatus | null>(null);
+  const [inventory, setInventory] = useState<InstalledSkill[]>([]);
+  const [selected, setSelected] = useState<string | null>(null);
+  const [tree, setTree] = useState<FileEntry[]>([]);
+  const [file, setFile] = useState<FileContent | null>(null);
+  const [treeOpen, setTreeOpen] = useState(false);
+  const [translationOn, setTranslationOn] = useState(false);
+  const [translationState, setTranslationState] = useState<{
+    key: string;
+    text?: string;
+    error?: string;
   } | null>(null);
-  const [importOpen, setImportOpen] = useState(false);
+  const [mobilePane, setMobilePane] = useState<"original" | "translation">(
+    "original",
+  );
+  const [filter, setFilter] = useState("");
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [searchResults, setSearchResults] = useState<SearchResult[]>([]);
+  const [source, setSource] = useState("");
+  const [busy, setBusy] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
-  const [actionError, setActionError] = useState<string | null>(null);
-  const [configurationBusy, setConfigurationBusy] = useState<string | null>(
-    null,
-  );
-  const [configurationDrift, setConfigurationDrift] = useState<{
-    packageId: string;
-    agent: "codex" | "claude";
-  } | null>(null);
-  const [installSkill, setInstallSkill] = useState<ManagedSkillPackage | null>(
-    null,
-  );
-  const [lifecycleAction, setLifecycleAction] =
-    useState<LifecycleAction | null>(null);
-  const [revisionAction, setRevisionAction] = useState<RevisionAction | null>(
-    null,
-  );
-  const [adoptionEntry, setAdoptionEntry] =
-    useState<ExternalInstallation | null>(null);
-  const [gitUpdateSkill, setGitUpdateSkill] =
-    useState<ManagedSkillPackage | null>(null);
-  const [query, setQuery] = useState("");
-  const [agentFilter, setAgentFilter] = useState<"all" | "codex" | "claude">(
-    "all",
-  );
-  const [enabledFilter, setEnabledFilter] = useState<
-    "all" | "enabled" | "disabled"
-  >("all");
-  const [ownershipFilter, setOwnershipFilter] = useState<
-    "all" | "managed" | "external"
-  >("all");
+  const [error, setError] = useState<string | null>(null);
+  const previewRequest = useRef(0);
 
-  const refresh = useCallback(() => {
-    void Promise.all([loadInventory(), loadStateStatus()])
-      .then(([nextInventory, nextStateStatus]) => {
-        setInventory(nextInventory);
-        setStateStatus(nextStateStatus);
-        setInventoryError(null);
+  const refresh = useCallback(() => listSkills().then(setInventory), []);
+  useEffect(() => {
+    void runtimeStatus()
+      .then((status) => {
+        setRuntime(status);
+        if (status.ready) return refresh();
       })
-      .catch((error: unknown) => {
-        setInventoryError({ value: error });
+      .catch((value: unknown) => setError(commandErrorMessage(value)));
+  }, [refresh]);
+
+  useEffect(() => {
+    savePreferences(preferences);
+    const media = matchMedia("(prefers-color-scheme: dark)");
+    const apply = () =>
+      (document.documentElement.dataset.theme = resolvedTheme(
+        preferences.theme,
+        media.matches,
+      ));
+    apply();
+    if (preferences.theme === "system") media.addEventListener("change", apply);
+    return () => media.removeEventListener("change", apply);
+  }, [preferences]);
+
+  useEffect(() => {
+    if (!selected) return;
+    const request = ++previewRequest.current;
+    void previewTree(selected)
+      .then((entries) => {
+        if (previewRequest.current !== request) return;
+        setTree(entries);
+        const first =
+          entries.find(
+            (entry) =>
+              !entry.directory && entry.path.toLowerCase() === "skill.md",
+          ) ??
+          entries.find((entry) => !entry.directory && !entry.unsupportedReason);
+        if (first)
+          return readPreview(selected, first.path).then((content) => {
+            if (previewRequest.current === request) setFile(content);
+          });
+      })
+      .catch((value: unknown) => {
+        if (previewRequest.current === request)
+          setError(commandErrorMessage(value));
       });
-  }, []);
+  }, [selected]);
 
-  useEffect(refresh, [refresh]);
-
-  const installations = inventory?.externalInstallations ?? [];
-  const attentionEntries = inventory?.attentionEntries ?? [];
-  const listedAttentionEntries = attentionEntries.filter(
-    (entry) => entry.kind !== "unexpected_agent_root_entry",
-  );
-  const managedPackages = inventory?.managedPackages ?? [];
-  const managedStatuses = new Map(
-    (inventory?.managedInstallationStatuses ?? []).map((entry) => [
-      `${entry.packageId}:${entry.agent}`,
-      entry,
-    ]),
-  );
-  const packageReconciliations = new Map(
-    (inventory?.managedPackageReconciliations ?? []).map((entry) => [
-      entry.packageId,
-      entry,
-    ]),
-  );
-  const readOnly = stateStatus?.mode === "read_only_recovery";
-  const normalizedQuery = query.trim().toLowerCase();
-  const visibleManaged = managedPackages.filter(
-    (skill) =>
-      ownershipFilter !== "external" &&
-      (agentFilter === "all" ||
-        skill.installations.some(
-          (installation) => installation.agent === agentFilter,
-        )) &&
-      (enabledFilter === "all" ||
-        skill.installations.some(
-          (installation) =>
-            installation.enabled === (enabledFilter === "enabled"),
-        )) &&
-      (!normalizedQuery || skill.name.toLowerCase().includes(normalizedQuery)),
-  );
-  const visibleExternal = installations.filter(
-    (installation) =>
-      ownershipFilter !== "managed" &&
-      enabledFilter === "all" &&
-      (agentFilter === "all" || installation.agent === agentFilter) &&
-      (!normalizedQuery ||
-        installation.skill.metadata.name
-          .toLowerCase()
-          .includes(normalizedQuery) ||
-        installation.skill.metadata.description
-          .toLowerCase()
-          .includes(normalizedQuery) ||
-        installation.logicalPath.toLowerCase().includes(normalizedQuery)),
-  );
-  const visibleAttention = listedAttentionEntries.filter(
-    (entry) =>
-      ownershipFilter !== "managed" &&
-      enabledFilter === "all" &&
-      (agentFilter === "all" || entry.agent === agentFilter) &&
-      (!normalizedQuery ||
-        entry.logicalPath.toLowerCase().includes(normalizedQuery)),
-  );
-
-  function toggleConfiguration(
-    packageId: string,
-    agent: "codex" | "claude",
-    enabled: boolean,
-  ) {
-    const key = `${packageId}:${agent}`;
-    setConfigurationBusy(key);
-    setActionError(null);
-    setConfigurationDrift(null);
-    void planConfiguration(packageId, agent, enabled)
-      .then((plan) => commitConfiguration(plan.id))
-      .then(() => {
-        setNotice(copy.restartFallback);
-        refresh();
-      })
-      .catch((error: unknown) => {
-        if (commandErrorCode(error) === "configuration_drift") {
-          setConfigurationDrift({ packageId, agent });
-          setActionError(copy.configurationDrift);
-        } else {
-          setActionError(
-            commandErrorMessage(error, copy.errors) ?? copy.unknownError,
-          );
-        }
-      })
-      .finally(() => setConfigurationBusy(null));
-  }
-
-  function resolveDrift(resolution: "reapply" | "forget") {
-    if (!configurationDrift) return;
-    setConfigurationBusy(
-      `${configurationDrift.packageId}:${configurationDrift.agent}`,
-    );
-    void resolveConfiguration(
-      configurationDrift.packageId,
-      configurationDrift.agent,
-      resolution,
-    )
-      .then(() => {
-        setNotice(copy.restartFallback);
-        setActionError(null);
-        setConfigurationDrift(null);
-        refresh();
-      })
-      .catch((error: unknown) => {
-        setActionError(
-          commandErrorMessage(error, copy.errors) ?? copy.unknownError,
-        );
-      })
-      .finally(() => setConfigurationBusy(null));
-  }
-
-  function resolveInventoryDrift(
-    packageId: string,
-    agent: "codex" | "claude",
-    resolution: "reapply" | "forget",
-  ) {
-    setConfigurationBusy(`${packageId}:${agent}`);
-    setActionError(null);
-    void resolveConfiguration(packageId, agent, resolution)
-      .then(() => {
-        setNotice(copy.restartFallback);
-        refresh();
-      })
-      .catch((error: unknown) =>
-        setActionError(
-          commandErrorMessage(error, copy.errors) ?? copy.unknownError,
-        ),
+  useEffect(() => {
+    if (!translationOn || !selected || !file?.translatable) return;
+    const key = `${selected}\n${file.path}\n${preferences.targetLanguage}`;
+    void translatePreview(selected, file.path, preferences.targetLanguage)
+      .then((result) =>
+        setTranslationState({ key, text: result.translatedText }),
       )
-      .finally(() => setConfigurationBusy(null));
-  }
-
-  function installationActionButton(
-    skill: ManagedSkillPackage,
-    installation: ManagedSkillPackage["installations"][number],
-    action: ManagedInstallationAction,
-  ) {
-    const busy = configurationBusy === `${skill.id}:${installation.agent}`;
-    switch (action) {
-      case "enable_configuration":
-      case "disable_configuration":
-        return (
-          <button
-            className="text-button"
-            type="button"
-            disabled={readOnly || busy}
-            onClick={() =>
-              toggleConfiguration(
-                skill.id,
-                installation.agent,
-                action === "enable_configuration",
-              )
-            }
-          >
-            {busy
-              ? copy.saving
-              : action === "enable_configuration"
-                ? copy.enable
-                : copy.disable}
-          </button>
-        );
-      case "reapply_configuration":
-      case "forget_configuration":
-        return (
-          <button
-            className="text-button"
-            type="button"
-            disabled={readOnly || busy}
-            onClick={() =>
-              resolveInventoryDrift(
-                skill.id,
-                installation.agent,
-                action === "reapply_configuration" ? "reapply" : "forget",
-              )
-            }
-          >
-            {action === "reapply_configuration"
-              ? copy.reapplyConfiguration
-              : copy.forgetConfiguration}
-          </button>
-        );
-      case "restore":
-        return (
-          <button
-            className="text-button destructive-text"
-            type="button"
-            disabled={readOnly}
-            onClick={() =>
-              setRevisionAction({
-                mode: "restore",
-                skill,
-                agent: installation.agent,
-              })
-            }
-          >
-            {copy.restoreAction}
-          </button>
-        );
-      case "detach":
-      case "uninstall":
-      case "forget_installation": {
-        const mode = action === "forget_installation" ? "forget" : action;
-        return (
-          <button
-            className={`text-button ${action === "detach" ? "" : "destructive-text"}`}
-            type="button"
-            disabled={readOnly}
-            onClick={() =>
-              setLifecycleAction({ mode, skill, agent: installation.agent })
-            }
-          >
-            {action === "detach"
-              ? copy.detachAction
-              : action === "uninstall"
-                ? copy.uninstallAction
-                : copy.forgetInstallationAction}
-          </button>
-        );
-      }
-      default:
-        return unreachable(action);
-    }
-  }
-
-  function packageActionButton(
-    skill: ManagedSkillPackage,
-    action: ManagedPackageAction,
-  ) {
-    switch (action) {
-      case "install":
-        return (
-          <button
-            className="text-button"
-            type="button"
-            disabled={readOnly}
-            onClick={() => setInstallSkill(skill)}
-          >
-            {copy.installAction}
-          </button>
-        );
-      case "replace":
-        return (
-          <button
-            className="text-button"
-            type="button"
-            disabled={readOnly}
-            onClick={() => setRevisionAction({ mode: "replace", skill })}
-          >
-            {copy.replaceAction}
-          </button>
-        );
-      case "check_update":
-        return (
-          <button
-            className="text-button"
-            type="button"
-            disabled={readOnly}
-            onClick={() => setGitUpdateSkill(skill)}
-          >
-            {copy.checkUpdateAction}
-          </button>
-        );
-      case "rollback":
-        return (
-          <button
-            className="text-button"
-            type="button"
-            disabled={readOnly}
-            onClick={() => setRevisionAction({ mode: "rollback", skill })}
-          >
-            {copy.rollbackAction}
-          </button>
-        );
-      case "export":
-        return (
-          <button
-            className="text-button"
-            type="button"
-            disabled={readOnly}
-            onClick={() => setRevisionAction({ mode: "export", skill })}
-          >
-            {copy.exportAction}
-          </button>
-        );
-      case "remove":
-        return (
-          <button
-            className="text-button destructive-text"
-            type="button"
-            disabled={readOnly}
-            onClick={() => setLifecycleAction({ mode: "remove", skill })}
-          >
-            {copy.removeLibraryAction}
-          </button>
-        );
-      default:
-        return unreachable(action);
-    }
-  }
-
-  function closeStagedDialog(close: () => void) {
-    close();
-    void cancelStaging().catch((error: unknown) => {
-      setActionError(
-        commandErrorMessage(error, copy.errors) ?? copy.unknownError,
+      .catch((value: unknown) =>
+        setTranslationState({ key, error: commandErrorMessage(value) }),
       );
-    });
+  }, [translationOn, selected, file, preferences.targetLanguage]);
+
+  const translationKey =
+    selected && file
+      ? `${selected}\n${file.path}\n${preferences.targetLanguage}`
+      : null;
+  const currentTranslation =
+    translationState?.key === translationKey ? translationState : null;
+
+  const visible = useMemo(() => {
+    const query = filter.trim().toLowerCase();
+    return inventory.filter(
+      (skill) =>
+        !query ||
+        skill.name.toLowerCase().includes(query) ||
+        skill.agents.some((agent) => agent.toLowerCase().includes(query)),
+    );
+  }, [filter, inventory]);
+
+  function perform(
+    label: string,
+    operation: () => Promise<{
+      inventory: InstalledSkill[];
+      targetObserved?: boolean | null;
+      diagnostics: string;
+    }>,
+    success: string,
+  ) {
+    setBusy(label);
+    setError(null);
+    setNotice(null);
+    void operation()
+      .then((result) => {
+        setInventory(result.inventory);
+        setNotice(
+          [
+            result.targetObserved === false ? copy.targetNotObserved : success,
+            result.diagnostics,
+          ]
+            .filter(Boolean)
+            .join("\n"),
+        );
+        if (
+          selected &&
+          !result.inventory.some((skill) => skill.name === selected)
+        )
+          setSelected(null);
+      })
+      .catch((value: unknown) => setError(commandErrorMessage(value)))
+      .finally(() => setBusy(null));
   }
+
+  function chooseFile(entry: FileEntry) {
+    if (!selected || entry.directory) return;
+    const request = ++previewRequest.current;
+    setTreeOpen(false);
+    if (entry.unsupportedReason) {
+      setFile({
+        path: entry.path,
+        viewer: "unsupported",
+        size: entry.size,
+        text: null,
+        dataUrl: null,
+        translatable: false,
+        unsupportedReason: entry.unsupportedReason,
+      });
+      return;
+    }
+    void readPreview(selected, entry.path)
+      .then((content) => {
+        if (previewRequest.current === request) setFile(content);
+      })
+      .catch((value: unknown) => {
+        if (previewRequest.current === request)
+          setError(commandErrorMessage(value));
+      });
+  }
+
+  function chooseSkill(name: string) {
+    previewRequest.current += 1;
+    setTree([]);
+    setFile(null);
+    setSelected(name);
+  }
+
+  function moveFocus(event: React.KeyboardEvent<HTMLButtonElement>) {
+    if (event.key !== "ArrowDown" && event.key !== "ArrowUp") return;
+    event.preventDefault();
+    const rows = Array.from(
+      event.currentTarget
+        .closest(".source-list")
+        ?.querySelectorAll<HTMLButtonElement>(".source-row") ?? [],
+    );
+    const index = rows.indexOf(event.currentTarget);
+    rows[index + (event.key === "ArrowDown" ? 1 : -1)]?.focus();
+  }
+
+  if (!runtime)
+    return (
+      <main className="runtime-screen">
+        <p>{copy.loading}</p>
+        {error && <pre className="error">{error}</pre>}
+      </main>
+    );
+  if (!runtime.ready)
+    return (
+      <main className="runtime-screen">
+        <h1>Skill Deck</h1>
+        <p>{runtime.message}</p>
+        <button
+          type="button"
+          onClick={() =>
+            void retryRuntime().then((status) => {
+              setRuntime(status);
+              if (status.ready) void refresh();
+            })
+          }
+        >
+          {copy.retry}
+        </button>
+      </main>
+    );
 
   return (
-    <main className="shell" id="top">
-      <nav className="nav" aria-label={copy.primaryNavigation}>
-        <a className="brand" href="#top" aria-label={copy.home}>
-          <span className="brand-mark" aria-hidden="true">
-            S
-          </span>
-          Skill Deck
-        </a>
-        <div className="nav-actions">
-          <span className="offline-dot">{copy.offline}</span>
-          <label className="locale-control">
-            <span className="sr-only">{copy.language}</span>
-            <select
-              value={locale}
-              onChange={(event) => {
-                const next = event.target.value as Locale;
-                localStorage.setItem("skill-deck-locale", next);
-                setLocale(next);
-              }}
-            >
-              <option value="zh-CN">简体中文</option>
-              <option value="en">English</option>
-            </select>
-          </label>
+    <main className="app-shell">
+      <header className="app-bar">
+        <div className="brand">
+          <span className="brand-mark">S</span>
+          <strong>Skill Deck</strong>
         </div>
-      </nav>
-
-      <section className="library" aria-labelledby="library-title">
-        <div className="library-heading">
-          <div>
-            <h2 id="library-title">{copy.skills}</h2>
-            <p className="inventory-summary">
-              {managedPackages.length} {copy.managedLibrary} ·{" "}
-              {installations.length} {copy.discovered} ·{" "}
-              {attentionEntries.length} {copy.needsAttention}
-            </p>
-          </div>
-          <div className="library-actions">
-            <button
-              className="secondary"
-              type="button"
-              disabled={!inventory || !stateStatus}
-              onClick={() => setSettingsOpen(true)}
-            >
-              {copy.settingsAction}
-            </button>
-            <button
-              className="primary"
-              type="button"
-              disabled={readOnly}
-              onClick={() => setImportOpen(true)}
-            >
-              {copy.importAction}
-            </button>
-          </div>
+        <div className="bar-actions">
+          <button
+            type="button"
+            className="button"
+            disabled={busy !== null}
+            onClick={() =>
+              window.confirm(copy.confirmUpdateAll) &&
+              perform("update-all", () => updateSkill(null), copy.refreshed)
+            }
+          >
+            <Icon name="refresh" />
+            {copy.updateAll}
+          </button>
+          <button
+            type="button"
+            className="icon-button"
+            onClick={() => setSettingsOpen(true)}
+            aria-label={copy.settings}
+            title={copy.settings}
+          >
+            <Icon name="settings" />
+          </button>
+          <select
+            aria-label={copy.language}
+            value={locale}
+            onChange={(event) => {
+              const next = event.target.value as Locale;
+              localStorage.setItem("skill-deck-locale", next);
+              setLocale(next);
+            }}
+          >
+            <option value="en">EN</option>
+            <option value="zh-CN">中文</option>
+          </select>
         </div>
-
-        {readOnly && <p className="recovery-banner">{copy.readOnlyRecovery}</p>}
-        {notice && <p className="success-banner">{notice}</p>}
-        {actionError && (
-          <div className="recovery-banner" role="alert">
-            <p>{actionError}</p>
-            {configurationDrift && (
-              <div className="library-actions">
-                <button
-                  className="secondary"
-                  type="button"
-                  disabled={configurationBusy !== null}
-                  onClick={() => resolveDrift("reapply")}
-                >
-                  {copy.reapplyConfiguration}
-                </button>
-                <button
-                  className="secondary"
-                  type="button"
-                  disabled={configurationBusy !== null}
-                  onClick={() => resolveDrift("forget")}
-                >
-                  {copy.forgetConfiguration}
-                </button>
-              </div>
-            )}
-          </div>
-        )}
-
-        {(managedPackages.length > 0 ||
-          installations.length > 0 ||
-          listedAttentionEntries.length > 0) && (
-          <div className="inventory-filters" aria-label={copy.filters}>
-            <label className="field search-field">
-              <span>{copy.search}</span>
+      </header>
+      {(notice || error) && (
+        <div className={error ? "status error" : "status"}>
+          {error ?? notice}
+        </div>
+      )}
+      <div className="workspace">
+        <aside className="inventory-pane" aria-labelledby="installed-heading">
+          <div className="pane-heading">
+            <div>
+              <h1 id="installed-heading">{copy.installed}</h1>
+              <span>{inventory.length}</span>
+            </div>
+            <label className="search-field">
+              <Icon name="search" />
               <input
-                type="search"
-                value={query}
-                onChange={(event) => setQuery(event.target.value)}
-                placeholder={copy.searchPlaceholder}
+                value={filter}
+                onChange={(event) => setFilter(event.target.value)}
+                placeholder={copy.filter}
+                aria-label={copy.filter}
               />
             </label>
-            <label className="filter-field">
-              <span>{copy.agentFilter}</span>
-              <select
-                value={agentFilter}
-                onChange={(event) =>
-                  setAgentFilter(
-                    event.target.value as "all" | "codex" | "claude",
-                  )
-                }
-              >
-                <option value="all">{copy.all}</option>
-                <option value="codex">Codex</option>
-                <option value="claude">Claude Code</option>
-              </select>
-            </label>
-            <label className="filter-field">
-              <span>{copy.enabledFilter}</span>
-              <select
-                value={enabledFilter}
-                onChange={(event) =>
-                  setEnabledFilter(
-                    event.target.value as "all" | "enabled" | "disabled",
-                  )
-                }
-              >
-                <option value="all">{copy.all}</option>
-                <option value="enabled">{copy.enabled}</option>
-                <option value="disabled">{copy.disabled}</option>
-              </select>
-            </label>
-            <label className="filter-field">
-              <span>{copy.managementScope}</span>
-              <select
-                value={ownershipFilter}
-                onChange={(event) =>
-                  setOwnershipFilter(
-                    event.target.value as "all" | "managed" | "external",
-                  )
-                }
-              >
-                <option value="all">{copy.all}</option>
-                <option value="managed">{copy.managed}</option>
-                <option value="external">{copy.outsideLibrary}</option>
-              </select>
-            </label>
-            {enabledFilter !== "all" && (
-              <p className="filter-scope-note">{copy.enabledManagedOnly}</p>
-            )}
           </div>
-        )}
-
-        {(!inventory || !stateStatus) && !inventoryError ? (
-          <div className="loading-state" aria-live="polite">
-            {copy.loading}
+          <div
+            className="source-list"
+            role="listbox"
+            aria-label={copy.installed}
+          >
+            {visible.map((skill) => (
+              <button
+                key={skill.name}
+                type="button"
+                className="source-row"
+                role="option"
+                aria-selected={selected === skill.name}
+                onKeyDown={moveFocus}
+                onClick={() => chooseSkill(skill.name)}
+              >
+                <strong>{skill.name}</strong>
+                <span>{skill.source ?? skill.path}</span>
+                <span className="tags">
+                  {skill.agents.map((agent) => (
+                    <i key={agent}>{agent}</i>
+                  ))}
+                </span>
+              </button>
+            ))}
           </div>
-        ) : inventoryError ? (
-          <div className="error-state" role="alert">
-            <p>
-              {commandErrorMessage(inventoryError.value, copy.errors) ??
-                copy.unknownError}
-            </p>
-            <button className="secondary" type="button" onClick={refresh}>
-              {copy.retry}
-            </button>
-          </div>
-        ) : visibleManaged.length > 0 ||
-          visibleExternal.length > 0 ||
-          visibleAttention.length > 0 ? (
-          <ul className="skill-list">
-            {visibleManaged.map((skill) => {
-              const packageReconciliation = packageReconciliations.get(
-                skill.id,
-              );
-              const reconciliations = skill.installations
-                .map((installation) =>
-                  managedStatuses.get(`${skill.id}:${installation.agent}`),
-                )
-                .filter(
-                  (entry): entry is ManagedInstallationReconciliation =>
-                    entry !== undefined,
+          {visible.length === 0 && (
+            <p className="empty-list">{copy.noSkills}</p>
+          )}
+          <section className="discovery" aria-labelledby="find-heading">
+            <h2 id="find-heading">{copy.search}</h2>
+            <form
+              onSubmit={(event) => {
+                event.preventDefault();
+                setError(null);
+                void searchSkills(searchQuery)
+                  .then(setSearchResults)
+                  .catch((value: unknown) =>
+                    setError(commandErrorMessage(value)),
+                  );
+              }}
+            >
+              <input
+                value={searchQuery}
+                onChange={(event) => setSearchQuery(event.target.value)}
+                aria-label={copy.searchQuery}
+                required
+              />
+              <button
+                type="submit"
+                className="icon-button"
+                aria-label={copy.search}
+                title={copy.search}
+              >
+                <Icon name="search" />
+              </button>
+            </form>
+            {searchResults.map((result) => (
+              <div className="search-result" key={result.slug}>
+                <span>
+                  <strong>{result.name}</strong>
+                  <small>
+                    {result.source} · {result.installs.toLocaleString()}
+                  </small>
+                </span>
+                <button
+                  type="button"
+                  disabled={busy !== null}
+                  onClick={() =>
+                    perform(
+                      `add-${result.slug}`,
+                      () =>
+                        addSkill(result.source, result.name, {
+                          agents: preferences.agents,
+                          copy: preferences.copy,
+                        }),
+                      copy.inventoryRefreshed,
+                    )
+                  }
+                >
+                  {copy.install}
+                </button>
+              </div>
+            ))}
+            <form
+              className="source-install"
+              onSubmit={(event) => {
+                event.preventDefault();
+                perform(
+                  "add-source",
+                  () =>
+                    addSkill(source, null, {
+                      agents: preferences.agents,
+                      copy: preferences.copy,
+                    }),
+                  copy.inventoryRefreshed,
                 );
-              const hasAbnormal = reconciliations.some(
-                (entry) => entry.status !== "healthy",
-              );
-              return (
-                <li className="skill-row" key={skill.id}>
-                  <div>
-                    <h3>{skill.name}</h3>
-                    <p>
-                      {skill.installations.length > 0
-                        ? `${copy.installedTo}: ${skill.installations
-                            .map((installation) => installation.agent)
-                            .join(", ")}`
-                        : copy.libraryOnly}
-                    </p>
-                    {packageReconciliation?.libraryDiagnostic && (
-                      <p className="skill-description">
-                        {inventoryDiagnosticMessage(
-                          packageReconciliation.libraryDiagnostic,
-                          skill.libraryPath,
-                          copy.errors,
-                        )}
-                      </p>
-                    )}
-                    {hasAbnormal && (
-                      <p className="filter-scope-note">
-                        {copy.packageActionsFrozen}
-                      </p>
-                    )}
-                  </div>
-                  <div className="skill-meta">
-                    <span>{skill.source.type.replace("_", " ")}</span>
-                    <span>{copy.managed}</span>
-                    {skill.installations.map((installation) => {
-                      const reconciliation = managedStatuses.get(
-                        `${skill.id}:${installation.agent}`,
-                      );
-                      if (!reconciliation) return null;
-                      return (
-                        <div
-                          className="installation-actions"
-                          key={installation.agent}
-                        >
-                          <div className="skill-title-line">
-                            <span>{installation.agent}</span>
-                            <span className="status-badge">
-                              {managedStatusLabel(reconciliation.status, copy)}
-                            </span>
-                          </div>
-                          <p className="installation-path">
-                            {reconciliation.evidence.logicalPath}
-                          </p>
-                          {reconciliation.diagnostic &&
-                            !packageReconciliation?.libraryDiagnostic && (
-                              <p className="skill-description">
-                                {inventoryDiagnosticMessage(
-                                  reconciliation.diagnostic,
-                                  reconciliation.evidence.logicalPath,
-                                  copy.errors,
-                                )}
-                              </p>
-                            )}
-                          {reconciliation.evidence.expectedTarget && (
-                            <p className="installation-path">
-                              {copy.expectedTarget}:{" "}
-                              {reconciliation.evidence.expectedTarget}
-                            </p>
-                          )}
-                          {reconciliation.evidence.observedTarget && (
-                            <p className="installation-path">
-                              {copy.observedTarget}:{" "}
-                              {reconciliation.evidence.observedTarget}
-                            </p>
-                          )}
-                          {reconciliation.evidence.observedFingerprint && (
-                            <p className="installation-path">
-                              {copy.expectedFingerprint}:{" "}
-                              {shortFingerprint(
-                                reconciliation.evidence.libraryFingerprint,
-                              )}{" "}
-                              · {copy.observedFingerprint}:{" "}
-                              {shortFingerprint(
-                                reconciliation.evidence.observedFingerprint,
-                              )}
-                            </p>
-                          )}
-                          {reconciliation.evidence.configurationProvenance
-                            .owner === "external" && (
-                            <p>{copy.externallyControlledConfiguration}</p>
-                          )}
-                          {reconciliation.evidence.deferredChecks && (
-                            <p>{copy.deferredChecks}</p>
-                          )}
-                          <span>
-                            {reconciliation.availableActions.map((action) => (
-                              <span key={action}>
-                                {installationActionButton(
-                                  skill,
-                                  installation,
-                                  action,
-                                )}
-                              </span>
-                            ))}
-                          </span>
-                        </div>
-                      );
-                    })}
-                    {packageReconciliation?.availableActions.map((action) => (
-                      <span key={action}>
-                        {packageActionButton(skill, action)}
-                      </span>
-                    ))}
-                  </div>
-                </li>
-              );
-            })}
-            {visibleExternal.map((installation) => (
-              <li
-                className="skill-row"
-                key={`${installation.agent}:${installation.logicalPath}`}
-              >
-                <div>
-                  <div className="skill-title-line">
-                    <h3>
-                      {inventoryEntryName(
-                        installation.logicalPath,
-                        installation.skill.metadata.name,
-                      )}
-                    </h3>
-                  </div>
-                  <p className="skill-description">
-                    {installation.skill.metadata.description}
-                  </p>
-                  <p className="installation-path">
-                    {installation.logicalPath}
-                  </p>
-                </div>
-                <div className="skill-meta">
-                  <span>{installation.agent}</span>
-                  <span>{copy.external}</span>
+              }}
+            >
+              <label>
+                {copy.installSource}
+                <input
+                  value={source}
+                  onChange={(event) => setSource(event.target.value)}
+                  required
+                />
+              </label>
+              <small>{copy.sourceHint}</small>
+              <button type="submit" disabled={busy !== null}>
+                <Icon name="download" />
+                {copy.install}
+              </button>
+            </form>
+          </section>
+        </aside>
+        <section className="detail-pane" aria-label={copy.preview}>
+          {!selected ? (
+            <div className="choose-placeholder">
+              <Icon name="file" />
+              <p>{copy.chooseSkill}</p>
+            </div>
+          ) : (
+            <>
+              <div className="detail-toolbar">
+                <button
+                  type="button"
+                  className="mobile-back"
+                  onClick={() => setSelected(null)}
+                >
+                  <Icon name="chevron" />
+                  {copy.backToInventory}
+                </button>
+                <div className="path-control">
                   <button
-                    className="text-button"
                     type="button"
-                    disabled={readOnly}
-                    onClick={() => setAdoptionEntry(installation)}
+                    className="path-button"
+                    aria-haspopup="tree"
+                    aria-expanded={treeOpen}
+                    onClick={() => setTreeOpen((open) => !open)}
                   >
-                    {installation.kind.startsWith("legacy_")
-                      ? copy.migrateAction
-                      : copy.adoptAction}
+                    <span>{file?.path ?? copy.path}</span>
+                    <Icon name="chevron" />
+                  </button>
+                  {treeOpen && (
+                    <div
+                      className="file-tree"
+                      role="tree"
+                      aria-label={copy.skillFiles}
+                      onKeyDown={(event) => {
+                        if (
+                          event.key !== "ArrowDown" &&
+                          event.key !== "ArrowUp"
+                        )
+                          return;
+                        event.preventDefault();
+                        const items = Array.from(
+                          event.currentTarget.querySelectorAll<HTMLButtonElement>(
+                            'button[role="treeitem"]:not(:disabled)',
+                          ),
+                        );
+                        const current = items.indexOf(
+                          document.activeElement as HTMLButtonElement,
+                        );
+                        items[
+                          Math.max(
+                            0,
+                            Math.min(
+                              items.length - 1,
+                              current + (event.key === "ArrowDown" ? 1 : -1),
+                            ),
+                          )
+                        ]?.focus();
+                      }}
+                    >
+                      {tree.map((entry) => (
+                        <button
+                          type="button"
+                          role="treeitem"
+                          aria-level={entry.level}
+                          aria-label={entry.path}
+                          data-path={entry.path}
+                          key={entry.path}
+                          disabled={entry.directory}
+                          aria-current={
+                            file?.path === entry.path ? "true" : undefined
+                          }
+                          style={{
+                            paddingInlineStart: `${10 + (entry.level - 1) * 18}px`,
+                          }}
+                          onClick={() => chooseFile(entry)}
+                        >
+                          <Icon name={entry.directory ? "folder" : "file"} />
+                          <span>{entry.name}</span>
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
+                <div className="preview-actions">
+                  {file?.translatable && (
+                    <>
+                      <span className="egress">{copy.egress}</span>
+                      <button
+                        type="button"
+                        aria-pressed={translationOn}
+                        onClick={() => setTranslationOn((on) => !on)}
+                      >
+                        <Icon name="translate" />
+                        {translationOn ? copy.translationOn : copy.translate}
+                      </button>
+                    </>
+                  )}
+                  <button
+                    type="button"
+                    className="icon-button"
+                    onClick={() =>
+                      void revealPath(selected, file?.path ?? null).catch(
+                        (value: unknown) =>
+                          setError(commandErrorMessage(value)),
+                      )
+                    }
+                    aria-label={file ? copy.revealFile : copy.revealRoot}
+                    title={file ? copy.revealFile : copy.revealRoot}
+                  >
+                    <Icon name="folder" />
+                  </button>
+                  <button
+                    type="button"
+                    className="danger"
+                    onClick={() =>
+                      window.confirm(copy.confirmRemove) &&
+                      perform(
+                        `remove-${selected}`,
+                        () => removeSkill(selected),
+                        copy.inventoryRefreshed,
+                      )
+                    }
+                  >
+                    <Icon name="trash" />
+                    {copy.remove}
+                  </button>
+                  <button
+                    type="button"
+                    disabled={busy !== null}
+                    onClick={() =>
+                      perform(
+                        `update-${selected}`,
+                        () => updateSkill(selected),
+                        copy.refreshed,
+                      )
+                    }
+                  >
+                    <Icon name="refresh" />
+                    {copy.update}
                   </button>
                 </div>
-              </li>
-            ))}
-            {visibleAttention.map((entry) => (
-              <li
-                className="skill-row"
-                key={`${entry.agent}:${entry.logicalPath}`}
+              </div>
+              {translationOn && file?.translatable && (
+                <div className="mobile-tabs" role="tablist">
+                  <button
+                    role="tab"
+                    aria-selected={mobilePane === "original"}
+                    onClick={() => setMobilePane("original")}
+                  >
+                    {copy.original}
+                  </button>
+                  <button
+                    role="tab"
+                    aria-selected={mobilePane === "translation"}
+                    onClick={() => setMobilePane("translation")}
+                  >
+                    {copy.translation}
+                  </button>
+                </div>
+              )}
+              <div
+                className={`viewer-grid ${translationOn && file?.translatable ? "translated" : ""}`}
+                data-pane={mobilePane}
               >
-                <div>
-                  <div className="skill-title-line">
-                    <h3>{inventoryEntryName(entry.logicalPath)}</h3>
-                    <span className="status-badge">{copy.invalid}</span>
-                  </div>
-                  <p className="skill-description">
-                    {inventoryDiagnosticMessage(
-                      entry.diagnostic,
-                      entry.logicalPath,
-                      copy.errors,
+                <Viewer
+                  file={file}
+                  label={copy.original}
+                  unsupported={copy.unsupported}
+                />
+                {translationOn && file?.translatable && (
+                  <article className="viewer translation-view">
+                    <h2>{copy.translation}</h2>
+                    {!currentTranslation ? (
+                      <p>{copy.loading}</p>
+                    ) : currentTranslation.error ? (
+                      <pre className="error">{currentTranslation.error}</pre>
+                    ) : file.viewer === "markdown" ? (
+                      <ReactMarkdown skipHtml components={markdownComponents}>
+                        {currentTranslation.text ?? ""}
+                      </ReactMarkdown>
+                    ) : (
+                      <pre>{currentTranslation.text ?? ""}</pre>
                     )}
-                  </p>
-                  <p className="installation-path">{entry.logicalPath}</p>
-                </div>
-                <div className="skill-meta">
-                  <span>{entry.agent}</span>
-                  <span>{attentionLabel(entry, copy)}</span>
-                </div>
-              </li>
-            ))}
-          </ul>
-        ) : managedPackages.length > 0 ||
-          installations.length > 0 ||
-          listedAttentionEntries.length > 0 ? (
-          <div className="empty-state compact-empty">
-            <h3>{copy.noResults}</h3>
-          </div>
-        ) : (
-          <div className="empty-state">
-            <div className="empty-glyph" aria-hidden="true">
-              <span />
-              <span />
-              <span />
-            </div>
-            <h3>{copy.emptyTitle}</h3>
-            <p>{copy.emptyBody}</p>
-            <button
-              className="primary"
-              type="button"
-              onClick={() => setImportOpen(true)}
-            >
-              {copy.importAction}
-            </button>
-          </div>
-        )}
-      </section>
-
-      {importOpen && (
-        <ImportDialog
-          copy={copy}
-          onClose={() => closeStagedDialog(() => setImportOpen(false))}
-          onCommitted={refresh}
-        />
-      )}
-      {settingsOpen && inventory && stateStatus && (
+                  </article>
+                )}
+              </div>
+            </>
+          )}
+        </section>
+      </div>
+      {settingsOpen && (
         <SettingsDialog
           copy={copy}
-          inventory={inventory}
-          stateStatus={stateStatus}
+          version={runtime.version}
+          preferences={preferences}
+          onChange={setPreferences}
           onClose={() => setSettingsOpen(false)}
         />
       )}
-      {installSkill && inventory && (
-        <InstallDialog
-          copy={copy}
-          inventory={inventory}
-          skill={installSkill}
-          onClose={() => setInstallSkill(null)}
-          onCommitted={(message) => {
-            setNotice(message);
-            refresh();
-          }}
-        />
-      )}
-      {lifecycleAction && (
-        <LifecycleDialog
-          action={lifecycleAction}
-          copy={copy}
-          onClose={() => setLifecycleAction(null)}
-          onCommitted={(message) => {
-            setNotice(message);
-            refresh();
-          }}
-        />
-      )}
-      {revisionAction && (
-        <RevisionDialog
-          action={revisionAction}
-          copy={copy}
-          onClose={() => closeStagedDialog(() => setRevisionAction(null))}
-          onCommitted={(message) => {
-            setNotice(message);
-            refresh();
-          }}
-        />
-      )}
-      {adoptionEntry && (
-        <AdoptionDialog
-          copy={copy}
-          entry={adoptionEntry}
-          candidates={installations.filter(
-            (candidate) =>
-              candidate.skill.metadata.name ===
-                adoptionEntry.skill.metadata.name &&
-              candidate.skill.fingerprint === adoptionEntry.skill.fingerprint &&
-              (candidate.kind === "directory" || candidate.kind === "link"),
-          )}
-          onClose={() => closeStagedDialog(() => setAdoptionEntry(null))}
-          onCommitted={(message) => {
-            setNotice(message);
-            refresh();
-          }}
-        />
-      )}
-      {gitUpdateSkill && (
-        <GitUpdateDialog
-          copy={copy}
-          skill={gitUpdateSkill}
-          onClose={() => closeStagedDialog(() => setGitUpdateSkill(null))}
-          onCommitted={(message) => {
-            setNotice(message);
-            refresh();
-          }}
-        />
-      )}
     </main>
+  );
+}
+
+function Viewer({
+  file,
+  label,
+  unsupported,
+}: {
+  file: FileContent | null;
+  label: string;
+  unsupported: string;
+}) {
+  if (!file)
+    return (
+      <article className="viewer">
+        <p>{unsupported}</p>
+      </article>
+    );
+  return (
+    <article className="viewer original-view">
+      <h2>{label}</h2>
+      {file.viewer === "markdown" ? (
+        <ReactMarkdown skipHtml components={markdownComponents}>
+          {file.text ?? ""}
+        </ReactMarkdown>
+      ) : file.viewer === "image" ? (
+        <img src={file.dataUrl ?? ""} alt={file.path} />
+      ) : file.viewer === "unsupported" ? (
+        <p>
+          {file.unsupportedReason ?? unsupported}
+          <br />
+          {file.size.toLocaleString()} bytes
+        </p>
+      ) : (
+        <pre>
+          <code>{file.text}</code>
+        </pre>
+      )}
+    </article>
   );
 }

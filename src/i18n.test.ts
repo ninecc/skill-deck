@@ -6,9 +6,6 @@ describe("i18n catalog", () => {
     expect(Object.keys(catalogs.en).sort()).toEqual(
       Object.keys(catalogs["zh-CN"]).sort(),
     );
-    expect(Object.keys(catalogs.en.errors).sort()).toEqual(
-      Object.keys(catalogs["zh-CN"].errors).sort(),
-    );
   });
 
   it("maps Chinese system locales and falls back to English", () => {

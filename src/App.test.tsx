@@ -1,97 +1,53 @@
 // @vitest-environment jsdom
-
 import { act } from "react";
 import { createRoot } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import App from "./App";
 
 const { invokeMock } = vi.hoisted(() => ({ invokeMock: vi.fn() }));
-
 vi.mock("@tauri-apps/api/core", () => ({ invoke: invokeMock }));
 
-const inventory = {
-  targets: [],
-  managedPackages: [],
-  managedInstallationStatuses: [],
-  managedPackageReconciliations: [],
-  externalInstallations: [
-    {
-      agent: "codex",
-      logicalPath: "/tmp/skills/valid-skill",
-      resolvedTarget: "/tmp/skills/valid-skill",
-      kind: "directory",
-      skill: {
-        root: "/tmp/skills/valid-skill",
-        fingerprint: "valid",
-        metadata: {
-          name: "valid-skill",
-          description: "A valid external skill",
-          unknownFields: {},
-        },
-        resources: {
-          packageBytes: 1,
-          fileCount: 1,
-          largestFileBytes: 1,
-          skillMarkdownBytes: 1,
-        },
-        scripts: [],
-        references: [],
-      },
-      diagnostic: null,
-    },
-  ],
-  attentionEntries: [
-    {
-      agent: "codex",
-      logicalPath: "/tmp/skills/invalid-skill",
-      resolvedTarget: "/tmp/skills/invalid-skill",
-      kind: "invalid_installation_candidate",
-      diagnostic: {
-        code: "unsupported_file_type",
-        message: "Links are unsupported",
-        path: "/tmp/skills/invalid-skill/references/link.md",
-      },
-    },
-    {
-      agent: "claude",
-      logicalPath: "/tmp/skills/notes.txt",
-      resolvedTarget: null,
-      kind: "unexpected_agent_root_entry",
-      diagnostic: {
-        code: "unsupported_file_type",
-        message: "Not a skill",
-        path: "/tmp/skills/notes.txt",
-      },
-    },
-  ],
-};
-
-describe("App inventory", () => {
+describe("CLI-backed workspace", () => {
   let container: HTMLDivElement;
   let root: ReturnType<typeof createRoot>;
 
   beforeEach(() => {
-    localStorage.setItem("skill-deck-locale", "en");
+    Object.defineProperty(globalThis, "matchMedia", {
+      configurable: true,
+      value: vi.fn(() => ({
+        matches: false,
+        addEventListener: vi.fn(),
+        removeEventListener: vi.fn(),
+      })),
+    });
     invokeMock.mockImplementation((command: string) => {
-      if (command === "inventory") return Promise.resolve(inventory);
-      if (command === "state_status") {
+      if (command === "runtime_status")
         return Promise.resolve({
-          mode: "active",
-          state: { packages: [] },
-          diagnostic: null,
+          ready: true,
+          version: "1.5.22",
+          nodeVersion: "22.20.0",
+          message: null,
         });
-      }
+      if (command === "list_skills")
+        return Promise.resolve([
+          {
+            name: "demo",
+            path: "/tmp/demo",
+            scope: "global",
+            agents: ["Future Agent"],
+            source: "owner/repo",
+            sourceUrl: null,
+            sourceType: "github",
+          },
+        ]);
+      if (command === "preview_tree") return Promise.resolve([]);
       return Promise.reject(new Error(`Unexpected command: ${command}`));
     });
     container = document.createElement("div");
     document.body.append(container);
     root = createRoot(container);
-    HTMLDialogElement.prototype.showModal = vi.fn();
-    HTMLDialogElement.prototype.close = vi.fn();
     (
-      globalThis as typeof globalThis & {
-        IS_REACT_ACT_ENVIRONMENT: boolean;
-      }
+      globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT: boolean }
     ).IS_REACT_ACT_ENVIRONMENT = true;
   });
 
@@ -102,214 +58,102 @@ describe("App inventory", () => {
     invokeMock.mockReset();
   });
 
-  it("shows actionable diagnostics and keeps locale changes scan-free", async () => {
-    await act(async () => {
-      root.render(<App />);
-    });
-
-    expect(container.textContent).toContain(
-      "1 Discovered external installations",
-    );
-    expect(container.textContent).toContain("2 Needs attention");
-    expect(container.textContent).toContain(
-      "/tmp/skills/invalid-skill/references/link.md",
-    );
-    expect(container.textContent).not.toContain("/tmp/skills/notes.txt");
-
-    const settingsButton = Array.from(
-      container.querySelectorAll("button"),
-    ).find((button) => button.textContent?.includes("Paths & diagnostics"));
-    await act(async () => settingsButton!.click());
-    expect(container.textContent).toContain("/tmp/skills/notes.txt");
-    await act(async () =>
-      (
-        container.querySelector(
-          ".settings-dialog .icon-button",
-        ) as HTMLButtonElement
-      ).click(),
-    );
-
-    const enabledSelect = Array.from(container.querySelectorAll("label"))
-      .find((label) => label.textContent?.includes("Enabled state"))
-      ?.querySelector("select");
-    expect(enabledSelect).toBeTruthy();
-    await act(async () => {
-      enabledSelect!.value = "enabled";
-      enabledSelect!.dispatchEvent(new Event("change", { bubbles: true }));
-    });
-    expect(container.textContent).toContain(
-      "Enabled state applies only to Skill Deck-managed skills.",
-    );
-    expect(container.textContent).not.toContain("invalid-skill");
-
-    const callsBeforeLocaleChange = invokeMock.mock.calls.length;
-    const localeSelect = container.querySelector(".locale-control select");
-    await act(async () => {
-      (localeSelect as HTMLSelectElement).value = "zh-CN";
-      localeSelect!.dispatchEvent(new Event("change", { bubbles: true }));
-    });
-    expect(invokeMock).toHaveBeenCalledTimes(callsBeforeLocaleChange);
+  it("shows arbitrary agents and starts without a selected Skill", async () => {
+    await act(async () => root.render(<App />));
+    expect(container.textContent).toContain("Future Agent");
+    expect(container.textContent).toContain("Choose an installed Skill");
+    expect(
+      container.querySelector('[role="option"]')?.getAttribute("aria-selected"),
+    ).toBe("false");
   });
 
-  it("renders backend-owned managed status, evidence, and actions", async () => {
-    const managedInventory = {
-      ...inventory,
-      externalInstallations: [],
-      attentionEntries: [],
-      managedPackages: [
-        {
-          id: "package-1",
-          name: "managed-skill",
-          libraryPath: "/library/managed-skill/current",
-          source: { type: "local_snapshot" },
-          installedRevision: {
-            fingerprint: "aaaaaaaaaaaaaaaaaaaaaaaa",
-            commitOid: null,
-          },
-          previousRevision: null,
-          installations: [
-            {
-              agent: "claude",
-              logicalPath: "/agents/skills/managed-skill",
-              resolvedTarget: "/library/managed-skill/current",
-              deploymentMode: "symlink",
-              enabled: true,
-              lastKnownFingerprint: "aaaaaaaaaaaaaaaaaaaaaaaa",
-              configurationProvenance: { owner: "none" },
-            },
-          ],
-        },
-      ],
-      managedInstallationStatuses: [
-        {
-          packageId: "package-1",
-          agent: "claude",
-          status: "retargeted",
-          diagnostic: {
-            code: "topology_changed",
-            message: "Retargeted",
-            path: "/agents/skills/managed-skill",
-          },
-          evidence: {
-            logicalPath: "/agents/skills/managed-skill",
-            deploymentMode: "symlink",
-            expectedTarget: "/library/managed-skill/current",
-            observedTarget: "/outside/managed-skill",
-            recordedFingerprint: "aaaaaaaaaaaaaaaaaaaaaaaa",
-            libraryFingerprint: "aaaaaaaaaaaaaaaaaaaaaaaa",
-            observedFingerprint: null,
-            configurationProvenance: { owner: "none" },
-            deferredChecks: true,
-          },
-          availableActions: ["forget_installation"],
-        },
-      ],
-      managedPackageReconciliations: [
-        {
-          packageId: "package-1",
-          libraryDiagnostic: null,
-          availableActions: ["export"],
-        },
-      ],
-    };
+  it("blocks the workspace when the runtime probe fails", async () => {
+    invokeMock.mockImplementation((command: string) =>
+      command === "runtime_status"
+        ? Promise.resolve({
+            ready: false,
+            version: null,
+            nodeVersion: null,
+            message: "Install Node.js 22.20.0 or newer",
+          })
+        : Promise.reject(new Error("blocked")),
+    );
+    await act(async () => root.render(<App />));
+    expect(container.textContent).toContain("Install Node.js 22.20.0 or newer");
+    expect(container.textContent).not.toContain("Installed Skills");
+  });
+
+  it("keeps Markdown resources inert and lets unsupported files be selected", async () => {
     invokeMock.mockImplementation((command: string) => {
-      if (command === "inventory") return Promise.resolve(managedInventory);
-      if (command === "state_status") {
+      if (command === "runtime_status")
         return Promise.resolve({
-          mode: "active",
-          state: { packages: managedInventory.managedPackages },
-          diagnostic: null,
+          ready: true,
+          version: "1.5.22",
+          nodeVersion: "22.20.0",
+          message: null,
         });
-      }
+      if (command === "list_skills")
+        return Promise.resolve([
+          {
+            name: "demo",
+            path: "/tmp/demo",
+            scope: "global",
+            agents: [],
+            source: null,
+            sourceUrl: null,
+            sourceType: null,
+          },
+        ]);
+      if (command === "preview_tree")
+        return Promise.resolve([
+          {
+            path: "SKILL.md",
+            name: "SKILL.md",
+            level: 1,
+            directory: false,
+            size: 40,
+            viewer: "markdown",
+            unsupportedReason: null,
+          },
+          {
+            path: "archive.zip",
+            name: "archive.zip",
+            level: 1,
+            directory: false,
+            size: 123,
+            viewer: "unsupported",
+            unsupportedReason: "No viewer",
+          },
+        ]);
+      if (command === "read_preview")
+        return Promise.resolve({
+          path: "SKILL.md",
+          viewer: "markdown",
+          size: 40,
+          text: "[link](https://example.com) ![remote](https://example.com/a.png)",
+          dataUrl: null,
+          translatable: true,
+        });
       return Promise.reject(new Error(`Unexpected command: ${command}`));
     });
-
     await act(async () => root.render(<App />));
-
-    expect(container.textContent).toContain("managed-skill");
-    expect(container.textContent).toContain("Retargeted");
-    expect(container.textContent).toContain("/library/managed-skill/current");
-    expect(container.textContent).toContain("/outside/managed-skill");
-    expect(container.textContent).toContain("Forget installation");
-    expect(container.textContent).not.toContain("Uninstall");
-    expect(container.textContent).not.toContain("Install to agents");
-  });
-
-  it("displays a broken Managed Library diagnostic only once per package", async () => {
-    const libraryDiagnostic = {
-      code: "content_drift",
-      message: "Managed Library changed",
-      path: "/library/managed-skill/current",
-    };
-    const managedInventory = {
-      ...inventory,
-      managedPackages: [
-        {
-          id: "package-1",
-          name: "managed-skill",
-          libraryPath: "/library/managed-skill/current",
-          source: { type: "local_snapshot" },
-          installedRevision: { fingerprint: "aaaa", commitOid: null },
-          previousRevision: null,
-          installations: [
-            {
-              agent: "claude",
-              logicalPath: "/agents/skills/managed-skill",
-              resolvedTarget: "/library/managed-skill/current",
-              deploymentMode: "symlink",
-              enabled: true,
-              lastKnownFingerprint: "aaaa",
-              configurationProvenance: { owner: "none" },
-            },
-          ],
-        },
-      ],
-      managedInstallationStatuses: [
-        {
-          packageId: "package-1",
-          agent: "claude",
-          status: "broken",
-          diagnostic: libraryDiagnostic,
-          evidence: {
-            logicalPath: "/agents/skills/managed-skill",
-            deploymentMode: "symlink",
-            expectedTarget: "/library/managed-skill/current",
-            observedTarget: null,
-            recordedFingerprint: "aaaa",
-            libraryFingerprint: "aaaa",
-            observedFingerprint: null,
-            configurationProvenance: { owner: "none" },
-            deferredChecks: true,
-          },
-          availableActions: ["forget_installation"],
-        },
-      ],
-      managedPackageReconciliations: [
-        {
-          packageId: "package-1",
-          libraryDiagnostic,
-          availableActions: [],
-        },
-      ],
-    };
-    invokeMock.mockImplementation((command: string) =>
-      command === "inventory"
-        ? Promise.resolve(managedInventory)
-        : command === "state_status"
-          ? Promise.resolve({
-              mode: "active",
-              state: { packages: managedInventory.managedPackages },
-              diagnostic: null,
-            })
-          : Promise.reject(new Error(`Unexpected command: ${command}`)),
+    await act(async () =>
+      (container.querySelector('[role="option"]') as HTMLButtonElement).click(),
     );
+    expect(container.querySelector(".viewer a")).toBeNull();
+    expect(container.querySelector(".viewer img")).toBeNull();
 
-    await act(async () => root.render(<App />));
-
+    await act(async () =>
+      (container.querySelector(".path-button") as HTMLButtonElement).click(),
+    );
+    const unsupported = container.querySelector(
+      '[data-path="archive.zip"]',
+    ) as HTMLButtonElement;
+    expect(unsupported.disabled).toBe(false);
+    await act(async () => unsupported.click());
+    expect(container.textContent).toContain("123 bytes");
     expect(
-      container.textContent?.match(
-        /Managed Skill content changed outside Skill Deck\./g,
-      ),
-    ).toHaveLength(1);
+      container.querySelector('[aria-label="Reveal file"]'),
+    ).not.toBeNull();
   });
 });

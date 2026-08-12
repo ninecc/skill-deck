@@ -1,185 +1,160 @@
-import { save } from "@tauri-apps/plugin-dialog";
-import { useEffect, useRef, useState } from "react";
-import {
-  commandErrorMessage,
-  commitDiagnosticsExport,
-  inventoryDiagnosticMessage,
-  planDiagnosticsExport,
-  type DiagnosticsExportPlan,
-  type Inventory,
-  type StateStatus,
-} from "./api";
+import { Icon } from "./icons";
 import type { Messages } from "./i18n";
+import {
+  agentOptions,
+  languages,
+  themes,
+  type Preferences,
+  type TargetLanguage,
+  type Theme,
+} from "./preferences";
 
-interface SettingsDialogProps {
+interface Props {
   copy: Messages;
-  inventory: Inventory;
-  stateStatus: StateStatus;
+  version: string | null;
+  preferences: Preferences;
+  onChange: (preferences: Preferences) => void;
   onClose: () => void;
 }
 
 export default function SettingsDialog({
   copy,
-  inventory,
-  stateStatus,
+  version,
+  preferences,
+  onChange,
   onClose,
-}: SettingsDialogProps) {
-  const dialogRef = useRef<HTMLDialogElement>(null);
-  const [diagnosticsPlan, setDiagnosticsPlan] =
-    useState<DiagnosticsExportPlan | null>(null);
-  const [busy, setBusy] = useState(false);
-  const [message, setMessage] = useState<string | null>(null);
-  const [error, setError] = useState<string | null>(null);
-
-  useEffect(() => {
-    const dialog = dialogRef.current;
-    dialog?.showModal();
-    return () => dialog?.close();
-  }, []);
-
-  function previewDiagnostics() {
-    setError(null);
-    void save({
-      defaultPath: "skill-deck-diagnostics.json",
-      filters: [{ name: "JSON", extensions: ["json"] }],
-    }).then((destination) => {
-      if (!destination) return;
-      setBusy(true);
-      void planDiagnosticsExport(destination)
-        .then(setDiagnosticsPlan)
-        .catch(showError)
-        .finally(() => setBusy(false));
-    }, showError);
-  }
-
-  function exportDiagnostics() {
-    if (!diagnosticsPlan) return;
-    setBusy(true);
-    setError(null);
-    void commitDiagnosticsExport(diagnosticsPlan.id)
-      .then((result) => {
-        setMessage(`${copy.exportComplete}: ${result.destination}`);
-        setDiagnosticsPlan(null);
-      })
-      .catch(showError)
-      .finally(() => setBusy(false));
-  }
-
-  function showError(failure: unknown) {
-    setError(commandErrorMessage(failure, copy.errors) ?? copy.unknownError);
-  }
-
+}: Props) {
+  const patch = (next: Partial<Preferences>) =>
+    onChange({ ...preferences, ...next });
   return (
-    <dialog
-      className="import-dialog settings-dialog"
-      ref={dialogRef}
-      onCancel={(event) => (busy ? event.preventDefault() : onClose())}
+    <div
+      className="sheet-backdrop"
+      role="presentation"
+      onMouseDown={(event) => event.target === event.currentTarget && onClose()}
     >
-      <div className="dialog-heading">
-        <div>
-          <p className="section-kicker">{copy.settingsDiagnostics}</p>
-          <h2>{copy.pathsTitle}</h2>
-        </div>
-        <button
-          className="icon-button"
-          type="button"
-          disabled={busy}
-          onClick={onClose}
-        >
-          <span aria-hidden="true">×</span>
-          <span className="sr-only">{copy.close}</span>
-        </button>
-      </div>
-      <div>
-        <dl className="path-list">
-          {inventory.targets.map((target) => (
-            <div key={`${target.agent}:${target.root}`}>
-              <dt>
-                {target.agent}
-                {target.legacy ? ` · ${copy.legacy}` : ""}
-              </dt>
-              <dd>{target.root}</dd>
-              <dd className={target.exists ? "path-ok" : "path-missing"}>
-                {target.exists ? copy.detected : copy.notCreated}
-              </dd>
-            </div>
-          ))}
-        </dl>
-        <div className="state-diagnostic">
-          <span>{copy.stateMode}</span>
-          <strong>{stateStatus.mode.replaceAll("_", " ")}</strong>
-          {stateStatus.diagnostic && <p>{stateStatus.diagnostic}</p>}
-        </div>
-        {inventory.attentionEntries.length > 0 && (
-          <div className="state-diagnostic">
-            <strong>
-              {copy.needsAttention}: {inventory.attentionEntries.length}
-            </strong>
-            <ul className="attention-list">
-              {inventory.attentionEntries.map((entry) => (
-                <li key={`${entry.agent}:${entry.logicalPath}`}>
-                  <strong>
-                    {entry.agent} · {copy[`attention_${entry.kind}`]}
-                  </strong>
-                  <span>{entry.logicalPath}</span>
-                  <span>
-                    {inventoryDiagnosticMessage(
-                      entry.diagnostic,
-                      entry.logicalPath,
-                      copy.errors,
-                    )}
-                  </span>
-                </li>
-              ))}
-            </ul>
-          </div>
-        )}
-        {diagnosticsPlan && (
-          <div className="disclosure-card diagnostics-preview">
-            <p className="section-kicker">{copy.diagnosticsPreview}</p>
-            <p>
-              {copy.managed}: {diagnosticsPlan.report.managedPackageCount} ·{" "}
-              {copy.external}:{" "}
-              {diagnosticsPlan.report.externalInstallationCount} ·{" "}
-              {copy.needsAttention}: {diagnosticsPlan.report.attentionCount}
-            </p>
-            <p>
-              {copy.omitted}: {diagnosticsPlan.report.omitted.join(", ")}
-            </p>
-            <p>{diagnosticsPlan.report.destination}</p>
-          </div>
-        )}
-        {message && <p className="success-banner dialog-banner">{message}</p>}
-        {error && <p className="inline-error">{error}</p>}
-        <div className="dialog-actions">
+      <section
+        className="settings-sheet"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="settings-title"
+      >
+        <header>
+          <h2 id="settings-title">{copy.settings}</h2>
           <button
-            className="secondary"
+            className="icon-button"
             type="button"
-            disabled={busy}
-            onClick={previewDiagnostics}
-          >
-            {copy.previewDiagnostics}
-          </button>
-          {diagnosticsPlan && (
-            <button
-              className="primary"
-              type="button"
-              disabled={busy}
-              onClick={exportDiagnostics}
-            >
-              {busy ? copy.saving : copy.exportDiagnostics}
-            </button>
-          )}
-          <button
-            className="primary"
-            type="button"
-            disabled={busy}
             onClick={onClose}
+            aria-label={copy.close}
+            title={copy.close}
           >
-            {copy.close}
+            <Icon name="close" />
           </button>
-        </div>
-      </div>
-    </dialog>
+        </header>
+        <fieldset>
+          <legend>{copy.appearance}</legend>
+          <div className="theme-grid">
+            {themes.map((theme) => (
+              <label className={`theme-tile preview-${theme}`} key={theme}>
+                <input
+                  type="radio"
+                  name="theme"
+                  value={theme}
+                  checked={preferences.theme === theme}
+                  onChange={() => patch({ theme: theme as Theme })}
+                />
+                <span className="theme-swatches">
+                  <i />
+                  <i />
+                  <i />
+                </span>
+                <span>{copy[theme]}</span>
+              </label>
+            ))}
+          </div>
+        </fieldset>
+        <label className="field">
+          {copy.targetLanguage}
+          <select
+            value={preferences.targetLanguage}
+            onChange={(event) =>
+              patch({ targetLanguage: event.target.value as TargetLanguage })
+            }
+          >
+            {languages.map(([code, label]) => (
+              <option key={code} value={code}>
+                {label}
+              </option>
+            ))}
+          </select>
+        </label>
+        <fieldset>
+          <legend>{copy.agentTargets}</legend>
+          <label className="choice">
+            <input
+              type="radio"
+              name="agents-mode"
+              checked={preferences.agents.length === 0}
+              onChange={() => patch({ agents: [] })}
+            />
+            {copy.automaticAgents}
+          </label>
+          <div className="agent-options">
+            {agentOptions.map((agent) => (
+              <label className="choice" key={agent}>
+                <input
+                  type="checkbox"
+                  disabled={preferences.agents.length === 0}
+                  checked={preferences.agents.includes(agent)}
+                  onChange={(event) =>
+                    patch({
+                      agents: event.target.checked
+                        ? [...preferences.agents, agent]
+                        : preferences.agents.filter((value) => value !== agent),
+                    })
+                  }
+                />
+                {agent}
+              </label>
+            ))}
+          </div>
+          <button
+            type="button"
+            className="text-button"
+            onClick={() =>
+              patch({ agents: preferences.agents.length ? [] : ["codex"] })
+            }
+          >
+            {preferences.agents.length
+              ? copy.automaticAgents
+              : copy.chooseExplicitTargets}
+          </button>
+        </fieldset>
+        <fieldset>
+          <legend>{copy.installMethod}</legend>
+          <label className="choice">
+            <input
+              type="radio"
+              name="method"
+              checked={!preferences.copy}
+              onChange={() => patch({ copy: false })}
+            />
+            {copy.automaticMethod}
+          </label>
+          <label className="choice">
+            <input
+              type="radio"
+              name="method"
+              checked={preferences.copy}
+              onChange={() => patch({ copy: true })}
+            />
+            {copy.copyMethod}
+          </label>
+        </fieldset>
+        <p className="version-row">
+          <span>{copy.cliVersion}</span>
+          <code>{version ?? "—"}</code>
+        </p>
+      </section>
+    </div>
   );
 }
