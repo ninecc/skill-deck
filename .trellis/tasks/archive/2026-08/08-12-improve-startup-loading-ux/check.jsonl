@@ -1,0 +1,5 @@
+{"file":".trellis/spec/backend/command-contracts.md","reason":"Verify the cross-layer startup response and CLI invocation count."}
+{"file":".trellis/spec/frontend/state-management.md","reason":"Verify Inventory is published only from completed typed responses."}
+{"file":".trellis/spec/frontend/component-guidelines.md","reason":"Verify compact rows preserve accessible selection behavior."}
+{"file":".trellis/spec/frontend/quality-guidelines.md","reason":"Run and assess all frontend quality gates."}
+{"file":".trellis/spec/backend/quality-guidelines.md","reason":"Run and assess all Rust quality gates."}

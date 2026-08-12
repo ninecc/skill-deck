@@ -1,0 +1,5 @@
+{"file":".trellis/spec/backend/command-contracts.md","reason":"Startup runtime/Inventory DTO, one-list validation, and blocking command contracts."}
+{"file":".trellis/spec/frontend/state-management.md","reason":"Inventory replacement and React-local startup state rules."}
+{"file":".trellis/spec/frontend/component-guidelines.md","reason":"Inventory row, no-selection, keyboard, and accessibility presentation rules."}
+{"file":".trellis/spec/frontend/quality-guidelines.md","reason":"Frontend behavioral testing and required validation commands."}
+{"file":".trellis/spec/backend/quality-guidelines.md","reason":"Rust boundary tests and required validation commands."}
