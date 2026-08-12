@@ -9,8 +9,7 @@ Every CLI child receives `DO_NOT_TRACK=1`; commands use argument vectors and
 never shell interpolation.
 
 ```text
-runtime_status() -> { ready, errorCode?, version?, nodeVersion?, message? }
-list_skills() -> InstalledSkill[]
+runtime_status() -> { ready, errorCode?, version?, nodeVersion?, message?, inventory }
 search_skills(query) -> SearchResult[]
 add_skill(source, skill?, settings) -> CommandResult
 remove_skill(name) -> CommandResult
@@ -70,6 +69,66 @@ pinned in the successful session.
 Runtime discovery failures expose a stable `RuntimeStatus.errorCode`; raw
 spawn, PATH and OS error strings are never included in its user-facing message.
 
+## Scenario: atomic startup runtime and Inventory
+
+### 1. Scope / Trigger
+
+Changing startup runtime probing or the initial Inventory response is a
+cross-layer contract change. Startup must not validate Inventory and then ask
+the CLI for the same Inventory again.
+
+### 2. Signatures
+
+```text
+runtime_status() -> RuntimeStatus
+retry_runtime() -> RuntimeStatus
+RuntimeStatus.inventory: InstalledSkill[] // required
+```
+
+There is no separate `list_skills` command. Mutation commands still return
+their refreshed Inventory in `CommandResult`.
+
+### 3. Contracts
+
+- A successful startup returns the exact decoded `list -g --json` result used
+  to validate the pinned CLI session; that invocation also refreshes Preview's
+  name-to-root map.
+- `ready == true` publishes runtime fields and Inventory atomically.
+- `ready == false` always returns `inventory == []` with the stable runtime
+  error fields.
+- Each successful initial startup or Retry executes exactly one Inventory
+  list. Failures during runtime discovery or version validation may execute no
+  list. Retry clears the failed session before repeating resolution and
+  validation.
+
+### 4. Validation & Error Matrix
+
+| Condition | Result |
+| --- | --- |
+| Compatible runtime and valid Inventory JSON | `ready=true` with decoded `inventory` |
+| Runtime discovery/version failure | `ready=false`, stable `errorCode`, empty `inventory` |
+| Invalid Inventory JSON or incompatible CLI | `ready=false`, `incompatible_cli`, empty `inventory` |
+
+### 5. Good/Base/Bad Cases
+
+- Good: one startup command returns runtime readiness and 45 Installed Skills.
+- Base: a valid empty list returns `ready=true` and `inventory=[]`.
+- Bad: `runtime_status` validates with one list and React invokes a second list.
+
+### 6. Tests Required
+
+- Assert every serialized `RuntimeStatus` includes an Inventory array.
+- Assert React startup invokes only `runtime_status`, then renders its Inventory.
+- Assert failure followed by Retry invokes only `runtime_status` and
+  `retry_runtime`, and publishes the Retry Inventory.
+
+### 7. Wrong vs Correct
+
+```text
+Wrong: runtime_status() validates Inventory; list_skills() fetches it again.
+Correct: runtime_status() returns the same Inventory that completed validation.
+```
+
 ## Scenario: bounded translation networking
 
 ### 1. Scope / Trigger
@@ -95,6 +154,17 @@ translate_preview(
 - A non-empty override affects translation only; it never changes CLI or search.
 - Connect timeout is 5 seconds. All chunks share one 15-second operation
   deadline and receive only its remaining duration.
+- Markdown prose fragments are HTML-escaped and packed into indexed inert spans
+  within the provider-size bound measured in Unicode characters; an oversized
+  fragment is split safely. At most four batches run concurrently; exact
+  sequential unique span markers are required, and raw tags or unknown entities
+  are rejected before entity decoding and document-order publication after
+  every batch succeeds. Detected language follows document order, not worker
+  completion order.
+- Markdown reconstruction uses each prose slice's original source range, so
+  repeated text inside protected syntax cannot be mistaken for translatable
+  prose. A worker panic becomes a stable `internal` failure with no partial
+  result.
 - `TranslationResult` is published only after every chunk succeeds; translated
   content remains session-only.
 
@@ -121,6 +191,11 @@ Provider error strings and query URLs never cross the command boundary.
   network access.
 - Assert later chunks receive the remaining shared deadline and any failed chunk
   yields no partial `TranslationResult`.
+- Assert escaping/decoding, Unicode batch size and oversized fragments, strict
+  marker/tag/entity validation, bounded batch concurrency, stable output and
+  detected-language order, and atomic failure.
+- Assert repeated protected/prose text reconstructs from the correct ranges and
+  worker panic is contained as an atomic failure.
 - Assert every provider failure returns only the stable code and sanitized copy.
 - Assert a blocking command future yields while its worker is pending.
 
