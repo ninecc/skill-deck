@@ -221,3 +221,25 @@ Kept translation within a strict 15-second shared deadline with one bounded tran
 ### Status
 
 [OK] **Completed**
+
+
+## Session 11: Tauri desktop UI UX refactor
+
+**Date**: 2026-08-12
+**Task**: Tauri desktop UI UX refactor
+**Branch**: `main`
+
+### Summary
+
+Refactored the desktop shell around a shared application command model, accessible modal and context-menu behavior, responsive status-preserving layout, UI locale preferences, native menu adapters, and full frontend regression coverage; recorded the architecture and frontend contracts.
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `50b86cb` | (see git log) |
+| `a7c9be4` | (see git log) |
+
+### Status
+
+[OK] **Completed**
