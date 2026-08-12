@@ -84,7 +84,6 @@ describe("CLI-backed workspace", () => {
         .disabled,
     ).toBe(true);
     expect(container.querySelector('[aria-label="Settings"]')).not.toBeNull();
-    expect(container.querySelector('[aria-label="Language"]')).not.toBeNull();
   });
 
   it("distinguishes empty Inventory from filter misses on visible fields", async () => {
@@ -166,6 +165,44 @@ describe("CLI-backed workspace", () => {
     ]);
   });
 
+  it("reports when Refresh removes the selected Skill", async () => {
+    invokeMock
+      .mockResolvedValueOnce({
+        ready: true,
+        errorCode: null,
+        version: "1.5.22",
+        nodeVersion: "22.20.0",
+        message: null,
+        inventory: [demoSkill],
+      })
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce({
+        ready: true,
+        errorCode: null,
+        version: "1.5.22",
+        nodeVersion: "22.20.0",
+        message: null,
+        inventory: [],
+      });
+    await act(async () => root.render(<App />));
+    await act(async () =>
+      (container.querySelector('[role="option"]') as HTMLButtonElement).click(),
+    );
+    await act(async () =>
+      (
+        container.querySelector(
+          '[aria-label="Refresh Inventory"]',
+        ) as HTMLButtonElement
+      ).click(),
+    );
+    expect(container.textContent).toContain(
+      "The selected Skill is no longer installed.",
+    );
+    expect(container.textContent).not.toContain(
+      "The command completed and Inventory was refreshed.",
+    );
+  });
+
   it("opens catalog search and source install in a separate sheet", async () => {
     invokeMock.mockImplementation((command: string) => {
       if (command === "runtime_status")
@@ -202,7 +239,7 @@ describe("CLI-backed workspace", () => {
     ).toBeNull();
     expect(inventoryPane.textContent).not.toContain("Install from source");
 
-    const open = Array.from(inventoryPane.querySelectorAll("button")).find(
+    const open = Array.from(container.querySelectorAll("button")).find(
       (button) => button.textContent?.includes("Find & install"),
     ) as HTMLButtonElement;
     await act(async () => open.click());
@@ -284,9 +321,12 @@ describe("CLI-backed workspace", () => {
         container.querySelector('[aria-label="Settings"]') as HTMLButtonElement
       ).click(),
     );
-    const input = container.querySelector(
-      'input[placeholder="http://127.0.0.1:7890"]',
-    ) as HTMLInputElement;
+    const proxyLabel = Array.from(container.querySelectorAll("label")).find(
+      (label) => label.textContent?.includes("Translation proxy"),
+    ) as HTMLLabelElement;
+    const input = proxyLabel.querySelector("input") as HTMLInputElement;
+    expect(input.value).toBe("");
+    expect(input.hasAttribute("placeholder")).toBe(false);
     const apply = Array.from(container.querySelectorAll("button")).find(
       (button) => button.textContent === "Apply proxy",
     ) as HTMLButtonElement;
@@ -418,6 +458,7 @@ describe("CLI-backed workspace", () => {
     expect(unsupported.disabled).toBe(false);
     await act(async () => unsupported.click());
     expect(container.textContent).toContain("123 bytes");
+    expect(container.querySelector(".preview-loading")).toBeNull();
     expect(
       container.querySelector('[aria-label="Reveal file"]'),
     ).not.toBeNull();

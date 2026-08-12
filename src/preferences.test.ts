@@ -49,4 +49,10 @@ describe("preferences", () => {
     );
     expect(loadPreferences("en-US").translationProxy).toBe("");
   });
+
+  it("migrates the legacy explicit UI locale once", () => {
+    localStorage.clear();
+    localStorage.setItem("skill-deck-locale", "zh-CN");
+    expect(loadPreferences("en-US").uiLocale).toBe("zh-CN");
+  });
 });

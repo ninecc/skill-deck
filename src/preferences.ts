@@ -1,4 +1,5 @@
 export type Theme = "system" | "light" | "dark" | "sand" | "plum";
+export type UiLocale = "system" | "en" | "zh-CN";
 
 export const themes: Theme[] = ["system", "light", "dark", "sand", "plum"];
 export const languages = [
@@ -97,6 +98,7 @@ export const agentOptions = [
 
 export interface Preferences {
   theme: Theme;
+  uiLocale: UiLocale;
   targetLanguage: TargetLanguage;
   translationProxy: string;
   agents: string[];
@@ -104,6 +106,7 @@ export interface Preferences {
 }
 
 const KEY = "skill-deck-preferences";
+const LEGACY_LOCALE_KEY = "skill-deck-locale";
 
 export function defaultLanguage(locale: string): TargetLanguage {
   const normalized = locale.toLowerCase();
@@ -120,6 +123,7 @@ export function defaultLanguage(locale: string): TargetLanguage {
 export function loadPreferences(locale = navigator.language): Preferences {
   const defaults: Preferences = {
     theme: "system",
+    uiLocale: "system",
     targetLanguage: defaultLanguage(locale),
     translationProxy: "",
     agents: [],
@@ -127,12 +131,25 @@ export function loadPreferences(locale = navigator.language): Preferences {
   };
   try {
     const saved: unknown = JSON.parse(localStorage.getItem(KEY) ?? "null");
-    if (!saved || typeof saved !== "object") return defaults;
+    if (!saved || typeof saved !== "object") {
+      const legacy = localStorage.getItem(LEGACY_LOCALE_KEY);
+      if (legacy === "en" || legacy === "zh-CN") defaults.uiLocale = legacy;
+      return defaults;
+    }
     const value = saved as Partial<Preferences>;
     return {
       theme: themes.includes(value.theme as Theme)
         ? (value.theme as Theme)
         : defaults.theme,
+      uiLocale:
+        value.uiLocale === "system" ||
+        value.uiLocale === "en" ||
+        value.uiLocale === "zh-CN"
+          ? value.uiLocale
+          : localStorage.getItem(LEGACY_LOCALE_KEY) === "en" ||
+              localStorage.getItem(LEGACY_LOCALE_KEY) === "zh-CN"
+            ? (localStorage.getItem(LEGACY_LOCALE_KEY) as "en" | "zh-CN")
+            : "system",
       targetLanguage: languages.some(([code]) => code === value.targetLanguage)
         ? (value.targetLanguage as TargetLanguage)
         : defaults.targetLanguage,
@@ -179,6 +196,7 @@ export function validateTranslationProxy(value: string): string | null {
 
 export function savePreferences(preferences: Preferences) {
   localStorage.setItem(KEY, JSON.stringify(preferences));
+  localStorage.removeItem(LEGACY_LOCALE_KEY);
 }
 
 export function resolvedTheme(
