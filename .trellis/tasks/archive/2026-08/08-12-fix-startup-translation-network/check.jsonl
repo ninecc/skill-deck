@@ -1,0 +1,8 @@
+{"file":".trellis/spec/backend/index.md","reason":"Verify Rust quality gate."}
+{"file":".trellis/spec/backend/command-contracts.md","reason":"Verify async wrappers preserve public contracts."}
+{"file":".trellis/spec/backend/error-handling.md","reason":"Verify timeout/proxy errors are sanitized."}
+{"file":".trellis/spec/backend/quality-guidelines.md","reason":"Verify regression coverage for blocking/network boundaries."}
+{"file":".trellis/spec/frontend/index.md","reason":"Verify frontend quality gate."}
+{"file":".trellis/spec/frontend/state-management.md","reason":"Verify proxy preference validation and transient request state."}
+{"file":".trellis/spec/frontend/component-guidelines.md","reason":"Verify accessible loading and Retry UI."}
+{"file":".trellis/spec/guides/cross-layer-thinking-guide.md","reason":"Verify end-to-end responsiveness and DTO consistency."}

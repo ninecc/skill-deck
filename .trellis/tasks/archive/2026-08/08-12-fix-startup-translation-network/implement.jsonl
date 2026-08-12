@@ -1,0 +1,9 @@
+{"file":".trellis/spec/backend/index.md","reason":"Backend quality commands and command-layer ownership."}
+{"file":".trellis/spec/backend/command-contracts.md","reason":"Existing runtime, Inventory, translation and DTO contracts."}
+{"file":".trellis/spec/backend/error-handling.md","reason":"Sanitized process and HTTP trust-boundary errors."}
+{"file":".trellis/spec/backend/quality-guidelines.md","reason":"Blocking work and provider boundary tests."}
+{"file":".trellis/spec/frontend/index.md","reason":"Frontend quality gate."}
+{"file":".trellis/spec/frontend/state-management.md","reason":"Validated localStorage preferences and transient translation state."}
+{"file":".trellis/spec/frontend/component-guidelines.md","reason":"Accessible loading, recovery and Settings controls."}
+{"file":".trellis/spec/guides/cross-layer-thinking-guide.md","reason":"Async Tauri command and React state flow consistency."}
+{"file":"docs/adr/0011-delegate-skill-lifecycle-to-the-upstream-cli.md","reason":"Preserve the upstream CLI session boundary."}
