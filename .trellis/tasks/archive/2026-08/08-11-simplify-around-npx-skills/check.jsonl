@@ -1,0 +1,13 @@
+{"file":".trellis/spec/frontend/index.md","reason":"Verify complete frontend quality gate."}
+{"file":".trellis/spec/frontend/component-guidelines.md","reason":"Verify keyboard file navigation, semantic controls, accessibility, and safe Markdown."}
+{"file":".trellis/spec/frontend/quality-guidelines.md","reason":"Verify thin frontend, bilingual copy, and behavior-focused tests."}
+{"file":".trellis/spec/backend/index.md","reason":"Verify complete Rust quality gate."}
+{"file":".trellis/spec/backend/error-handling.md","reason":"Verify stable structured errors and no panic/string parsing at trust boundaries."}
+{"file":".trellis/spec/backend/quality-guidelines.md","reason":"Verify preview resource limits, unsafe link handling, and focused boundary tests."}
+{"file":".trellis/spec/backend/command-contracts.md","reason":"Verify CLI commands remain backend-owned and inventory refresh is authoritative; flag obsolete spec text."}
+{"file":".trellis/spec/guides/cross-platform-thinking-guide.md","reason":"Verify native PATH/reveal claims are platform-scoped."}
+{"file":".trellis/tasks/08-11-simplify-around-npx-skills/research/official-skills-cli-contract.md","reason":"Verify implementation against official latest CLI limitations rather than assumed output semantics."}
+{"file":"CONTEXT.md","reason":"Verify removed lifecycle vocabulary and new CLI-owned boundaries remain consistent."}
+{"file":"docs/adr/0011-delegate-skill-lifecycle-to-the-upstream-cli.md","reason":"Verify the implementation has one lifecycle source of truth and no compatibility manager."}
+{"file":".trellis/tasks/08-11-simplify-around-npx-skills/ux-design.md","reason":"Verify the selected UI preserves the audited task hierarchy, full state coverage, accessibility and responsive Preview behavior."}
+{"file":".trellis/tasks/08-11-simplify-around-npx-skills/prototype/index.html","reason":"Reference the chosen interaction direction without promoting throwaway prototype code into production."}

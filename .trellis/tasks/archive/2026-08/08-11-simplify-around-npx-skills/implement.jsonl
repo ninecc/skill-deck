@@ -1,0 +1,15 @@
+{"file":".trellis/spec/frontend/index.md","reason":"Frontend layer entry point and required quality commands for the React rewrite."}
+{"file":".trellis/spec/frontend/component-guidelines.md","reason":"Semantic controls, accessibility, and safe untrusted Markdown rendering constraints."}
+{"file":".trellis/spec/frontend/state-management.md","reason":"Keep UI preferences local/localStorage and avoid a new durable client state model."}
+{"file":".trellis/spec/frontend/type-safety.md","reason":"Typed Tauri DTO and open-string Agent contract requirements."}
+{"file":".trellis/spec/backend/index.md","reason":"Backend layer entry point and Rust quality commands."}
+{"file":".trellis/spec/backend/directory-structure.md","reason":"Keep Tauri handlers thin and add only real CLI/preview/translation seams."}
+{"file":".trellis/spec/backend/error-handling.md","reason":"Structured runtime, process, schema, filesystem, and provider errors."}
+{"file":".trellis/spec/backend/command-contracts.md","reason":"Existing command-boundary and refresh-after-mutation rules; old lifecycle portions must be updated during this task."}
+{"file":".trellis/spec/guides/cross-layer-thinking-guide.md","reason":"CLI JSON, Rust DTO, TypeScript boundary and viewer data-flow consistency."}
+{"file":".trellis/spec/guides/cross-platform-thinking-guide.md","reason":"PATH lookup, safe paths, filesystem links, and native file-manager reveal behavior."}
+{"file":".trellis/tasks/08-11-simplify-around-npx-skills/research/official-skills-cli-contract.md","reason":"Verified skills@1.5.22/latest machine contracts, command caveats, Node floor, Agents, search, and telemetry."}
+{"file":"CONTEXT.md","reason":"Target ubiquitous language for CLI-owned Inventory, session version, preview and translation."}
+{"file":"docs/adr/0011-delegate-skill-lifecycle-to-the-upstream-cli.md","reason":"Accepted replacement boundary superseding the former Managed Library architecture."}
+{"file":".trellis/tasks/08-11-simplify-around-npx-skills/ux-design.md","reason":"Round-one product-tool audit, task flows, state matrix, accessibility rules, responsive behavior, and three shell directions."}
+{"file":".trellis/tasks/08-11-simplify-around-npx-skills/prototype/index.html","reason":"Throwaway A/B/C interaction evidence; use only to evaluate hierarchy and rewrite the selected direction for production."}

@@ -1,0 +1,466 @@
+<!doctype html>
+<!--
+  THROWAWAY ROUND 3 PROTOTYPE. Only G is a current candidate.
+  This planning artifact is isolated from product routes and has no backend.
+-->
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Skill Deck prototype G</title>
+    <style>
+      :root {
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+        color: var(--color-text);
+        background: var(--color-chrome);
+        --color-window: #f5f6f7;
+        --color-chrome: #edeff1;
+        --color-surface: #fcfcfd;
+        --color-surface-subtle: #f4f5f6;
+        --color-hover: #eceff2;
+        --color-selected: #e2eefb;
+        --color-text: #23282e;
+        --color-muted: #606a74;
+        --color-border: #aeb5bd;
+        --color-border-soft: #dfe3e7;
+        --color-accent: #2d669d;
+        --color-accent-hover: #245582;
+        --color-on-accent: #fff;
+        --color-control: #fafbfc;
+        --color-tag: #f4f5f6;
+        --color-tag-border: #c8d0d8;
+        --color-document-text: #343a41;
+        --color-code-surface: #f0f2f4;
+        --color-code-border: #d2d8df;
+        --color-danger: #9a3f46;
+        --color-danger-soft: #f5e2e4;
+        --color-danger-border: #ce9da2;
+        --color-inline-border: #ce9da2;
+        --color-prototype-border: #bd7f86;
+        --color-warning: #7a581f;
+        --color-warning-soft: #f6edd9;
+        --color-focus: #1f6fb2;
+        --color-field-text: #444c54;
+        --color-skeleton: #dde1e5;
+        --color-scrim: rgb(26 32 38 / 34%);
+        --shadow-popover: 0 14px 36px rgb(24 30 36 / 18%);
+        --shadow-sheet: 0 22px 60px rgb(20 26 32 / 28%);
+        --space-1: 4px;
+        --space-2: 8px;
+        --space-3: 12px;
+        --space-4: 16px;
+        --space-6: 24px;
+        --radius: 6px;
+        --z-popover: 10;
+        --z-sheet: 20;
+        --z-prototype: 30;
+      }
+
+      * { box-sizing: border-box; }
+      html, body, #app { width: 100%; min-width: 640px; min-height: 100%; margin: 0; }
+      body { height: 100dvh; overflow: hidden; }
+      button, input, select { font: inherit; }
+      button { color: inherit; }
+      button:focus-visible, input:focus-visible, select:focus-visible, [tabindex]:focus-visible { outline: 2px solid var(--color-focus); outline-offset: 1px; }
+      button:disabled, input:disabled, select:disabled { cursor: not-allowed; opacity: .46; }
+      h1, h2, h3, p { margin-top: 0; }
+      h1 { margin-bottom: 0; font-size: .92rem; }
+      h2 { font-size: 1rem; }
+      h3 { font-size: .82rem; }
+      p { color: var(--color-muted); font-size: .79rem; line-height: 1.5; }
+      code, pre, .mono { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
+      .sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0; }
+      .window { width: 100vw; height: 100dvh; display: grid; grid-template-rows: 44px minmax(0, 1fr) 24px; overflow: hidden; color: var(--color-text); background: var(--color-window); }
+      .window[data-theme="dark"] {
+        color-scheme: dark;
+        --color-window: #1a1c1f;
+        --color-chrome: #222529;
+        --color-surface: #1e2125;
+        --color-surface-subtle: #25292e;
+        --color-hover: #2d3238;
+        --color-selected: #243b53;
+        --color-text: #eef0f2;
+        --color-muted: #adb4bc;
+        --color-border: #69717a;
+        --color-border-soft: #3a3f45;
+        --color-accent: #78a8d2;
+        --color-accent-hover: #8bb6dc;
+        --color-on-accent: #102232;
+        --color-control: #292d32;
+        --color-tag: #292d31;
+        --color-tag-border: #46515c;
+        --color-document-text: #dadddf;
+        --color-code-surface: #16181b;
+        --color-code-border: #39434d;
+        --color-danger: #f09a9e;
+        --color-danger-soft: #42272b;
+        --color-danger-border: #a85c63;
+        --color-inline-border: #a85c63;
+        --color-prototype-border: #a85c63;
+        --color-warning: #e3b761;
+        --color-warning-soft: #3b301e;
+        --color-focus: #86c1ef;
+        --color-field-text: #d6dade;
+        --color-skeleton: #353a40;
+        --color-scrim: rgb(0 0 0 / 60%);
+        --shadow-popover: 0 14px 36px rgb(0 0 0 / 38%);
+        --shadow-sheet: 0 22px 60px rgb(0 0 0 / 46%);
+      }
+      .window[data-palette="sand"] {
+        --color-window: #f5f0e7;
+        --color-chrome: #ebe1d2;
+        --color-surface: #fffaf2;
+        --color-surface-subtle: #f4eadc;
+        --color-hover: #eee0cf;
+        --color-selected: #f4dfbf;
+        --color-text: #322a22;
+        --color-muted: #6f6255;
+        --color-border: #b9aa98;
+        --color-border-soft: #ded1c2;
+        --color-accent: #9a552c;
+        --color-accent-hover: #7f4423;
+        --color-on-accent: #fffaf5;
+        --color-control: #fcf6ed;
+        --color-tag: #f6ecdf;
+        --color-tag-border: #d1b995;
+        --color-document-text: #493f35;
+        --color-code-surface: #f2e8da;
+        --color-code-border: #d8c2a4;
+        --color-danger: #973f4d;
+        --color-danger-soft: #f6e2e5;
+        --color-danger-border: #cd9aa3;
+        --color-inline-border: #cd9aa3;
+        --color-prototype-border: #b87a85;
+        --color-warning: #76531b;
+        --color-warning-soft: #f6ead1;
+        --color-focus: #a85e2f;
+        --color-field-text: #554a3e;
+        --color-skeleton: #ded2c4;
+        --color-scrim: rgb(49 38 26 / 35%);
+        --shadow-popover: 0 14px 36px rgb(54 39 24 / 18%);
+        --shadow-sheet: 0 22px 60px rgb(45 32 20 / 28%);
+      }
+      .window[data-theme="dark"][data-palette="plum"] {
+        --color-window: #211820;
+        --color-chrome: #2b1f2a;
+        --color-surface: #261c25;
+        --color-surface-subtle: #30232f;
+        --color-hover: #3a2a39;
+        --color-selected: #493653;
+        --color-text: #f2edf2;
+        --color-muted: #c0b2bf;
+        --color-border: #766576;
+        --color-border-soft: #483a47;
+        --color-accent: #c6a0d4;
+        --color-accent-hover: #d3b2df;
+        --color-on-accent: #26152c;
+        --color-control: #342833;
+        --color-tag: #322631;
+        --color-tag-border: #67516b;
+        --color-document-text: #e4dce4;
+        --color-code-surface: #1c151c;
+        --color-code-border: #59435a;
+        --color-danger: #f1a0a5;
+        --color-danger-soft: #4b292f;
+        --color-danger-border: #ad626b;
+        --color-inline-border: #ad626b;
+        --color-prototype-border: #ad626b;
+        --color-warning: #e3bd72;
+        --color-warning-soft: #40331f;
+        --color-focus: #d8b4e5;
+        --color-field-text: #ddd3dc;
+        --color-skeleton: #443743;
+        --color-scrim: rgb(0 0 0 / 62%);
+        --shadow-popover: 0 14px 36px rgb(0 0 0 / 40%);
+        --shadow-sheet: 0 22px 60px rgb(0 0 0 / 48%);
+      }
+      .toolbar { min-width: 0; display: grid; grid-template-columns: auto minmax(160px, 1fr) auto; align-items: center; gap: var(--space-2); padding: var(--space-2); border-bottom: 1px solid var(--color-border-soft); background: var(--color-chrome); }
+      .toolbar-group { min-width: 0; display: flex; align-items: center; gap: var(--space-1); }
+      .toolbar-center { justify-content: center; }
+      .toolbar-end { justify-content: flex-end; }
+      .brand { display: inline-flex; align-items: center; gap: var(--space-2); font-size: .8rem; font-weight: 700; white-space: nowrap; }
+      .brand-mark { width: 24px; height: 24px; display: grid; place-items: center; border-radius: var(--radius); color: var(--color-on-accent); background: var(--color-accent); font-size: .7rem; }
+      .button { min-height: 30px; display: inline-flex; align-items: center; justify-content: center; gap: 6px; padding: var(--space-1) var(--space-2); border: 1px solid var(--color-border); border-radius: var(--radius); background: var(--color-control); cursor: pointer; font-size: .75rem; font-weight: 620; white-space: nowrap; }
+      .icon { width: 16px; height: 16px; flex: 0 0 16px; display: block; color: currentColor; }
+      .icon-button { width: 30px; padding: var(--space-1); }
+      .button:hover:not(:disabled) { background: var(--color-surface); }
+      .button:active:not(:disabled) { background: var(--color-hover); }
+      .button.primary { color: var(--color-on-accent); border-color: var(--color-accent); background: var(--color-accent); }
+      .button.primary:hover:not(:disabled), .button.primary:active:not(:disabled) { background: var(--color-accent-hover); }
+      .button.danger { color: var(--color-danger); }
+      .button[aria-pressed="true"] { color: var(--color-on-accent); border-color: var(--color-accent); background: var(--color-accent); }
+      .button[data-tab][aria-selected="true"] { color: var(--color-accent); border-color: var(--color-accent); background: var(--color-selected); }
+      .toolbar-center > .icon { position: relative; z-index: 1; margin-right: -30px; color: var(--color-muted); pointer-events: none; }
+      .search { width: min(100%, 390px); min-height: 30px; padding: var(--space-1) var(--space-2) var(--space-1) 30px; border: 1px solid var(--color-border); border-radius: var(--radius); color: var(--color-text); background: var(--color-surface); font-size: .77rem; }
+      .workspace { min-width: 0; min-height: 0; display: grid; grid-template-columns: 272px minmax(0, 1fr); overflow: hidden; }
+      .master { min-width: 0; min-height: 0; display: grid; grid-template-rows: 35px minmax(0, 1fr); border-right: 1px solid var(--color-border-soft); background: var(--color-window); }
+      .master-head { display: flex; align-items: center; justify-content: space-between; gap: var(--space-2); padding: var(--space-2); border-bottom: 1px solid var(--color-border-soft); background: var(--color-surface-subtle); font-size: .72rem; }
+      .source-list { margin: 0; padding: 0; overflow: auto; list-style: none; }
+      .source-row { width: 100%; min-height: 58px; display: grid; gap: var(--space-1); padding: var(--space-2); border: 0; border-left: 3px solid transparent; border-bottom: 1px solid var(--color-border-soft); background: transparent; text-align: left; cursor: pointer; }
+      .source-row:hover { background: var(--color-hover); }
+      .source-row[aria-selected="true"] { border-left-color: var(--color-accent); background: var(--color-selected); }
+      .source-title { display: flex; align-items: center; justify-content: space-between; gap: var(--space-1); font-size: .79rem; font-weight: 680; }
+      .source-meta { overflow: hidden; color: var(--color-muted); font-size: .66rem; text-overflow: ellipsis; white-space: nowrap; }
+      .tags { display: flex; flex-wrap: wrap; gap: var(--space-1); }
+      .tag { padding: 1px 5px; border: 1px solid var(--color-tag-border); border-radius: 999px; color: var(--color-muted); background: var(--color-tag); font-size: .61rem; }
+      .detail { min-width: 0; min-height: 0; display: grid; grid-template-rows: 38px minmax(0, 1fr); position: relative; background: var(--color-surface); }
+      .detail-empty { grid-template-rows: minmax(0, 1fr); place-items: center; padding: var(--space-6); text-align: center; }
+      .detail-empty > div { max-width: 340px; }
+      .detail-empty h1 { margin-bottom: var(--space-1); font-size: .9rem; }
+      .detail-empty p { margin-bottom: 0; }
+      .detail-toolbar { min-width: 0; display: flex; align-items: center; justify-content: space-between; gap: var(--space-2); padding: var(--space-1) var(--space-2); border-bottom: 1px solid var(--color-border-soft); background: var(--color-surface-subtle); }
+      .path-button { min-width: 0; max-width: 48vw; overflow: hidden; text-overflow: ellipsis; text-align: left; }
+      .egress { color: var(--color-muted); font-size: .64rem; white-space: nowrap; }
+      .viewer-grid { min-width: 0; min-height: 0; display: grid; grid-template-columns: minmax(0, 1fr); }
+      .viewer-grid.translation-on { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
+      .viewer { min-width: 0; overflow: auto; padding: var(--space-6) clamp(20px, 4vw, 52px); }
+      .viewer + .viewer { border-left: 1px solid var(--color-border-soft); }
+      .viewer h2 { margin: var(--space-6) 0 var(--space-2); }
+      .viewer .doc-title { margin-bottom: var(--space-4); font-size: 1.32rem; }
+      .viewer p { max-width: 70ch; color: var(--color-document-text); font-size: .84rem; }
+      .viewer pre { overflow: auto; padding: var(--space-3); border: 1px solid var(--color-code-border); border-radius: var(--radius); background: var(--color-code-surface); font-size: .72rem; line-height: 1.5; }
+      .translation-pane { display: none; background: var(--color-control); }
+      .translation-on .translation-pane { display: block; }
+      .pane-label { margin-bottom: var(--space-3); color: var(--color-muted); font-size: .66rem; font-weight: 680; }
+      .mobile-tabs { display: none; }
+      .tree { width: min(390px, calc(100% - 16px)); max-height: 340px; position: absolute; z-index: var(--z-popover); top: 35px; left: var(--space-2); overflow: auto; padding: var(--space-1); border: 1px solid var(--color-border); border-radius: var(--radius); background: var(--color-surface); box-shadow: var(--shadow-popover); }
+      .tree button { width: 100%; min-height: 28px; display: flex; align-items: center; gap: 6px; padding: var(--space-1) var(--space-2); border: 0; border-radius: var(--radius); background: transparent; text-align: left; cursor: pointer; font-size: .74rem; }
+      .tree button:hover, .tree button:focus-visible, .tree button[aria-current="true"] { background: var(--color-selected); }
+      .tree button .icon { color: var(--color-muted); }
+      .tree-1 { padding-left: 24px !important; }
+      .statusbar { display: flex; align-items: center; justify-content: space-between; gap: var(--space-2); padding: 0 var(--space-2); border-top: 1px solid var(--color-border-soft); color: var(--color-muted); background: var(--color-chrome); font-size: .66rem; }
+      .status-text { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+      .status-text strong { color: var(--color-accent); }
+      .inline-message { display: flex; align-items: center; justify-content: space-between; gap: var(--space-2); padding: var(--space-2) var(--space-3); border-bottom: 1px solid var(--color-inline-border); color: var(--color-danger); background: var(--color-danger-soft); font-size: .73rem; }
+      .loading-content { min-width: 0; min-height: 0; display: grid; grid-template-columns: 272px minmax(0, 1fr); }
+      .skeleton-list { border-right: 1px solid var(--color-border-soft); padding: var(--space-2); }
+      .skeleton-line { height: 10px; margin: var(--space-3) 0; border-radius: 3px; background: var(--color-skeleton); }
+      .skeleton-line.short { width: 58%; }
+      .skeleton-view { padding: var(--space-6); }
+      .runtime { height: 100%; display: grid; align-content: start; gap: var(--space-3); padding: var(--space-6); }
+      .runtime h2, .runtime p { margin-bottom: 0; }
+      .runtime p { max-width: 68ch; }
+      .runtime pre { width: min(620px, 100%); margin: 0; padding: var(--space-2); border: 1px solid var(--color-danger-border); border-radius: var(--radius); color: var(--color-danger); background: var(--color-danger-soft); font-size: .71rem; }
+      .sheet-layer { position: absolute; z-index: var(--z-sheet); inset: 44px 0 24px; display: grid; align-items: start; justify-items: center; padding: 44px var(--space-4) var(--space-4); background: var(--color-scrim); }
+      .sheet { width: min(640px, calc(100% - 20px)); max-height: calc(100% - 20px); overflow: auto; border: 1px solid var(--color-border); border-radius: 9px; background: var(--color-window); box-shadow: var(--shadow-sheet); }
+      .sheet.side { width: min(390px, 100%); height: 100%; max-height: none; justify-self: end; margin: -44px calc(var(--space-4) * -1) calc(var(--space-4) * -1) 0; border-width: 0 0 0 1px; border-radius: 0; }
+      .sheet-head { display: flex; align-items: center; justify-content: space-between; gap: var(--space-2); padding: var(--space-2) var(--space-3); border-bottom: 1px solid var(--color-border); }
+      .sheet-head h2 { margin: 0; font-size: .9rem; }
+      .sheet-body { display: grid; gap: var(--space-3); padding: var(--space-3); }
+      .field { display: grid; gap: var(--space-1); color: var(--color-field-text); font-size: .72rem; font-weight: 620; }
+      .field input, .field select { min-height: 30px; width: 100%; padding: var(--space-1) var(--space-2); border: 1px solid var(--color-border); border-radius: var(--radius); color: var(--color-text); background: var(--color-surface); }
+      .helper { color: var(--color-muted); font-size: .67rem; font-weight: 400; }
+      .result-row { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: var(--space-2); align-items: center; padding: var(--space-2) 0; border-bottom: 1px solid var(--color-border-soft); }
+      .result-row strong { font-size: .76rem; }
+      .result-row p { margin: 2px 0 0; font-size: .7rem; }
+      .form-error { display: flex; align-items: center; justify-content: space-between; gap: var(--space-2); padding: var(--space-2); border: 1px solid var(--color-danger-border); border-radius: var(--radius); color: var(--color-danger); background: var(--color-danger-soft); font-size: .7rem; }
+      .setting-group { display: grid; gap: var(--space-2); padding-bottom: var(--space-3); border-bottom: 1px solid var(--color-border-soft); }
+      .setting-group:last-child { border-bottom: 0; }
+      .setting-group h3 { margin: 0; }
+      .choice { display: flex; gap: var(--space-2); align-items: flex-start; font-size: .73rem; }
+      .choice small { display: block; margin-top: 2px; color: var(--color-muted); }
+      .theme-options { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: var(--space-1); }
+      .theme-tile { min-width: 0; display: grid; justify-items: center; gap: var(--space-1); padding: 6px var(--space-1); border: 1px solid var(--color-border-soft); border-radius: var(--radius); background: var(--color-control); color: var(--color-muted); cursor: pointer; font-size: .64rem; text-align: center; }
+      .theme-tile:has(input:checked) { border-color: var(--color-accent); color: var(--color-text); background: var(--color-selected); }
+      .theme-tile input { width: 14px; height: 14px; margin: 0; accent-color: var(--color-accent); }
+      .theme-tile input:focus-visible { outline-offset: 2px; }
+      .theme-tile strong { max-width: 100%; overflow: hidden; text-overflow: ellipsis; }
+      .theme-tile small { color: var(--color-muted); font-size: .58rem; }
+      .theme-swatch { width: 100%; height: 18px; display: grid; grid-template-columns: 1fr 1fr 8px; overflow: hidden; border: 1px solid var(--color-border-soft); border-radius: 4px; }
+      .theme-swatch span { display: block; }
+      .swatch-system > span { display: grid; grid-template-columns: 1fr 1fr; }
+      .swatch-system i { display: block; }
+      .swatch-system span:nth-child(1) i:nth-child(1) { background: #edeff1; } .swatch-system span:nth-child(1) i:nth-child(2) { background: #222529; }
+      .swatch-system span:nth-child(2) i:nth-child(1) { background: #fcfcfd; } .swatch-system span:nth-child(2) i:nth-child(2) { background: #1e2125; }
+      .swatch-system span:nth-child(3) i:nth-child(1) { background: #2d669d; } .swatch-system span:nth-child(3) i:nth-child(2) { background: #78a8d2; }
+      .swatch-light span:nth-child(1) { background: #edeff1; } .swatch-light span:nth-child(2) { background: #fcfcfd; } .swatch-light span:nth-child(3) { background: #2d669d; }
+      .swatch-dark span:nth-child(1) { background: #222529; } .swatch-dark span:nth-child(2) { background: #1e2125; } .swatch-dark span:nth-child(3) { background: #78a8d2; }
+      .swatch-sand span:nth-child(1) { background: #ebe1d2; } .swatch-sand span:nth-child(2) { background: #fffaf2; } .swatch-sand span:nth-child(3) { background: #9a552c; }
+      .swatch-plum span:nth-child(1) { background: #2b1f2a; } .swatch-plum span:nth-child(2) { background: #261c25; } .swatch-plum span:nth-child(3) { background: #c6a0d4; }
+      .prototype-label { position: fixed; z-index: var(--z-prototype); right: var(--space-2); bottom: 30px; padding: var(--space-1) var(--space-2); border: 1px solid var(--color-prototype-border); border-radius: var(--radius); color: var(--color-danger); background: var(--color-danger-soft); font-size: .61rem; font-weight: 700; }
+
+      @media (max-width: 900px) {
+        .egress { display: none; }
+        .viewer-grid.translation-on { grid-template-columns: minmax(0, 1fr); }
+        .translation-mode .mobile-tabs { display: flex; }
+        .translation-on[data-pane="translation"] .viewer-original { display: none; }
+        .translation-on[data-pane="original"] .translation-pane { display: none; }
+        .viewer + .viewer { border-left: 0; }
+      }
+      @media (max-width: 820px) {
+        .workspace { grid-template-columns: minmax(0, 1fr); }
+        .master, .detail { grid-column: 1; grid-row: 1; }
+        .window[data-view="list"] .detail { display: none; }
+        .window[data-view="preview"] .master { display: none; }
+        .back-button { display: inline-flex !important; }
+        .toolbar-end .optional { display: none; }
+        .path-button { max-width: 42vw; }
+      }
+      @media (min-width: 821px) { .back-button { display: none !important; } }
+      @media (prefers-reduced-motion: reduce) { *, *::before, *::after { scroll-behavior: auto !important; transition: none !important; } }
+    </style>
+  </head>
+  <body>
+    <div id="app"></div>
+    <div class="prototype-label">THROWAWAY G</div>
+
+    <script>
+      const skills = [
+        { id: "frontend-design", name: "frontend-design", source: "vercel-labs/agent-skills", agents: ["Codex", "Claude", "Cursor"] },
+        { id: "domain-modeling", name: "domain-modeling", source: "local source", agents: ["Codex", "Claude"] },
+        { id: "research", name: "research", source: "didi/research-skills", agents: ["Codex"] },
+        { id: "grilling", name: "grilling", source: "didi/agent-skills", agents: ["Codex", "Claude"] },
+        { id: "prototype", name: "prototype", source: "didi/agent-skills", agents: ["Codex"] },
+      ];
+      const params = new URLSearchParams(location.search);
+      const colorSchemeQuery = window.matchMedia?.("(prefers-color-scheme: dark)") ?? { matches: false, addEventListener() {} };
+      let themePreference = ["system", "light", "dark", "sand", "plum"].includes(params.get("theme")) ? params.get("theme") : "system";
+      let selectedId = skills.some(skill => skill.id === params.get("skill")) ? params.get("skill") : null;
+      let view = selectedId && params.get("view") === "preview" ? "preview" : "list";
+      let appState = ["ready", "loading", "runtime", "partial", "error"].includes(params.get("state")) ? params.get("state") : "ready";
+      let sheet = ["add", "settings"].includes(params.get("sheet")) ? params.get("sheet") : null;
+      let translationOn = false;
+      let pane = "translation";
+      let path = "SKILL.md";
+      let returnFocusId = null;
+      let focusAfterRender = null;
+
+      // Copied from the Iconify `ph` collection (Phosphor Regular 2.1.1, MIT).
+      // Deliberately local: this prototype performs no icon API or CDN requests.
+      const iconPaths = {
+        "plus": `<path fill="currentColor" d="M224 128a8 8 0 0 1-8 8h-80v80a8 8 0 0 1-16 0v-80H40a8 8 0 0 1 0-16h80V40a8 8 0 0 1 16 0v80h80a8 8 0 0 1 8 8"/>`,
+        "arrows-clockwise": `<path fill="currentColor" d="M224 48v48a8 8 0 0 1-8 8h-48a8 8 0 0 1 0-16h28.69l-14.63-14.63a79.56 79.56 0 0 0-56.13-23.43h-.45a79.52 79.52 0 0 0-55.89 22.77a8 8 0 0 1-11.18-11.44a96 96 0 0 1 135 .79L208 76.69V48a8 8 0 0 1 16 0m-37.59 135.29a80 80 0 0 1-112.47-.66L59.31 168H88a8 8 0 0 0 0-16H40a8 8 0 0 0-8 8v48a8 8 0 0 0 16 0v-28.69l14.63 14.63A95.43 95.43 0 0 0 130 222.06h.53a95.36 95.36 0 0 0 67.07-27.33a8 8 0 0 0-11.18-11.44Z"/>`,
+        "gear": `<path fill="currentColor" d="M128 80a48 48 0 1 0 48 48a48.05 48.05 0 0 0-48-48m0 80a32 32 0 1 1 32-32a32 32 0 0 1-32 32m88-29.84q.06-2.16 0-4.32l14.92-18.64a8 8 0 0 0 1.48-7.06a107.2 107.2 0 0 0-10.88-26.25a8 8 0 0 0-6-3.93l-23.72-2.64q-1.48-1.56-3-3L186 40.54a8 8 0 0 0-3.94-6a107.7 107.7 0 0 0-26.25-10.87a8 8 0 0 0-7.06 1.49L130.16 40h-4.32L107.2 25.11a8 8 0 0 0-7.06-1.48a107.6 107.6 0 0 0-26.25 10.88a8 8 0 0 0-3.93 6l-2.64 23.76q-1.56 1.49-3 3L40.54 70a8 8 0 0 0-6 3.94a107.7 107.7 0 0 0-10.87 26.25a8 8 0 0 0 1.49 7.06L40 125.84v4.32L25.11 148.8a8 8 0 0 0-1.48 7.06a107.2 107.2 0 0 0 10.88 26.25a8 8 0 0 0 6 3.93l23.72 2.64q1.49 1.56 3 3L70 215.46a8 8 0 0 0 3.94 6a107.7 107.7 0 0 0 26.25 10.87a8 8 0 0 0 7.06-1.49L125.84 216q2.16.06 4.32 0l18.64 14.92a8 8 0 0 0 7.06 1.48a107.2 107.2 0 0 0 26.25-10.88a8 8 0 0 0 3.93-6l2.64-23.72q1.56-1.48 3-3l23.78-2.8a8 8 0 0 0 6-3.94a107.7 107.7 0 0 0 10.87-26.25a8 8 0 0 0-1.49-7.06Zm-16.1-6.5a74 74 0 0 1 0 8.68a8 8 0 0 0 1.74 5.48l14.19 17.73a91.6 91.6 0 0 1-6.23 15l-22.6 2.56a8 8 0 0 0-5.1 2.64a74 74 0 0 1-6.14 6.14a8 8 0 0 0-2.64 5.1l-2.51 22.58a91.3 91.3 0 0 1-15 6.23l-17.74-14.19a8 8 0 0 0-5-1.75h-.48a74 74 0 0 1-8.68 0a8 8 0 0 0-5.48 1.74l-17.78 14.2a91.6 91.6 0 0 1-15-6.23L82.89 187a8 8 0 0 0-2.64-5.1a74 74 0 0 1-6.14-6.14a8 8 0 0 0-5.1-2.64l-22.58-2.52a91.3 91.3 0 0 1-6.23-15l14.19-17.74a8 8 0 0 0 1.74-5.48a74 74 0 0 1 0-8.68a8 8 0 0 0-1.74-5.48L40.2 100.45a91.6 91.6 0 0 1 6.23-15L69 82.89a8 8 0 0 0 5.1-2.64a74 74 0 0 1 6.14-6.14A8 8 0 0 0 82.89 69l2.51-22.57a91.3 91.3 0 0 1 15-6.23l17.74 14.19a8 8 0 0 0 5.48 1.74a74 74 0 0 1 8.68 0a8 8 0 0 0 5.48-1.74l17.77-14.19a91.6 91.6 0 0 1 15 6.23L173.11 69a8 8 0 0 0 2.64 5.1a74 74 0 0 1 6.14 6.14a8 8 0 0 0 5.1 2.64l22.58 2.51a91.3 91.3 0 0 1 6.23 15l-14.19 17.74a8 8 0 0 0-1.74 5.53Z"/>`,
+        "arrow-left": `<path fill="currentColor" d="M224 128a8 8 0 0 1-8 8H59.31l58.35 58.34a8 8 0 0 1-11.32 11.32l-72-72a8 8 0 0 1 0-11.32l72-72a8 8 0 0 1 11.32 11.32L59.31 120H216a8 8 0 0 1 8 8"/>`,
+        "translate": `<path fill="currentColor" d="m247.15 212.42l-56-112a8 8 0 0 0-14.31 0l-21.71 43.43A88 88 0 0 1 108 126.93A103.65 103.65 0 0 0 135.69 64H160a8 8 0 0 0 0-16h-56V32a8 8 0 0 0-16 0v16H32a8 8 0 0 0 0 16h87.63A87.76 87.76 0 0 1 96 116.35a87.7 87.7 0 0 1-19-31a8 8 0 1 0-15.08 5.34A103.6 103.6 0 0 0 84 127a87.55 87.55 0 0 1-52 17a8 8 0 0 0 0 16a103.46 103.46 0 0 0 64-22.08a104.2 104.2 0 0 0 51.44 21.31l-26.6 53.19a8 8 0 0 0 14.31 7.16L148.94 192h70.11l13.79 27.58A8 8 0 0 0 240 224a8 8 0 0 0 7.15-11.58M156.94 176L184 121.89L211.05 176Z"/>`,
+        "folder-open": `<path fill="currentColor" d="M245 110.64a16 16 0 0 0-13-6.64h-16V88a16 16 0 0 0-16-16h-69.33l-27.73-20.8a16.14 16.14 0 0 0-9.6-3.2H40a16 16 0 0 0-16 16v144a8 8 0 0 0 8 8h179.1a8 8 0 0 0 7.59-5.47l28.49-85.47a16.05 16.05 0 0 0-2.18-14.42M93.34 64l29.86 22.4A8 8 0 0 0 128 88h72v16H69.77a16 16 0 0 0-15.18 10.94L40 158.7V64Zm112 136H43.1l26.67-80H232Z"/>`,
+        "trash": `<path fill="currentColor" d="M216 48h-40v-8a24 24 0 0 0-24-24h-48a24 24 0 0 0-24 24v8H40a8 8 0 0 0 0 16h8v144a16 16 0 0 0 16 16h128a16 16 0 0 0 16-16V64h8a8 8 0 0 0 0-16M96 40a8 8 0 0 1 8-8h48a8 8 0 0 1 8 8v8H96Zm96 168H64V64h128Zm-80-104v64a8 8 0 0 1-16 0v-64a8 8 0 0 1 16 0m48 0v64a8 8 0 0 1-16 0v-64a8 8 0 0 1 16 0"/>`,
+        "magnifying-glass": `<path fill="currentColor" d="m229.66 218.34l-50.07-50.06a88.11 88.11 0 1 0-11.31 11.31l50.06 50.07a8 8 0 0 0 11.32-11.32M40 112a72 72 0 1 1 72 72a72.08 72.08 0 0 1-72-72"/>`,
+        "file": `<path fill="currentColor" d="m213.66 82.34l-56-56A8 8 0 0 0 152 24H56a16 16 0 0 0-16 16v176a16 16 0 0 0 16 16h144a16 16 0 0 0 16-16V88a8 8 0 0 0-2.34-5.66M160 51.31L188.69 80H160ZM200 216H56V40h88v48a8 8 0 0 0 8 8h48z"/>`,
+        "dots-three": `<path fill="currentColor" d="M140 128a12 12 0 1 1-12-12a12 12 0 0 1 12 12m56-12a12 12 0 1 0 12 12a12 12 0 0 0-12-12m-136 0a12 12 0 1 0 12 12a12 12 0 0 0-12-12"/>`,
+      };
+
+      function icon(name) { return `<svg class="icon" aria-hidden="true" viewBox="0 0 256 256">${iconPaths[name]}</svg>`; }
+
+      function decorateIcons() {
+        const labeled = [
+          ['[data-action="back"]', "arrow-left"],
+          ['.toolbar-end .optional[data-action="feedback"]', "arrows-clockwise"],
+          ['[data-trigger="add"]', "plus"],
+          ['[data-trigger="settings"]', "gear"],
+          ['[data-action="tree"]', "file"],
+          ['[data-action="translate"]', "translate"],
+        ];
+        for (const [selector, name] of labeled) document.querySelector(selector)?.insertAdjacentHTML("afterbegin", icon(name));
+        document.querySelector("#installed-filter")?.insertAdjacentHTML("beforebegin", icon("magnifying-glass"));
+        const reveal = document.querySelector('.detail-toolbar [data-action="feedback"]');
+        if (reveal) {
+          reveal.classList.add("icon-button"); reveal.setAttribute("aria-label", "Reveal in file manager"); reveal.title = "Reveal in file manager"; reveal.innerHTML = icon("folder-open");
+          reveal.insertAdjacentHTML("afterend", `<button class="button danger" type="button" data-action="feedback">${icon("trash")}Remove</button><button class="button icon-button" type="button" data-action="feedback" aria-label="More preview actions" title="More preview actions">${icon("dots-three")}</button>`);
+        }
+      }
+
+      function sourceList() {
+        return `<aside class="master"><div class="master-head"><strong>Global Skills</strong><span>${skills.length}</span></div><div class="source-list" role="listbox" aria-label="Installed Skills">${skills.map(skill => `<button class="source-row" type="button" role="option" data-skill="${skill.id}" aria-selected="${skill.id === selectedId}"><span class="source-title"><span>${skill.name}</span></span><span class="source-meta">${skill.source}</span><span class="tags">${skill.agents.map(agent => `<span class="tag">${agent}</span>`).join("")}</span></button>`).join("")}</div></aside>`;
+      }
+
+      function tree() {
+        const files = [
+          ["skill", "SKILL.md", "SKILL.md", "", "file", 1], ["references", "references", "references/", "", "folder-open", 1],
+          ["accessibility", "accessibility.md", "references/accessibility.md", "tree-1", "file", 2], ["patterns", "patterns.json", "references/patterns.json", "tree-1", "file", 2], ["image", "preview.png", "preview.png", "", "file", 1],
+        ];
+        return `<div class="tree" role="tree" aria-label="Skill files" hidden>${files.map(([id, label, filePath, className, iconName, level]) => `<button type="button" class="${className}" role="treeitem" aria-level="${level}" aria-label="${filePath}" data-file="${id}" data-path="${filePath}" ${filePath === path ? 'aria-current="true"' : ""}>${icon(iconName)}<span>${label}</span></button>`).join("")}</div>`;
+      }
+
+      function detail() {
+        const displayPath = `${selectedId} / ${path}`;
+        return `<section class="detail"><div class="detail-toolbar"><div class="toolbar-group"><button class="button path-button mono" type="button" data-action="tree" aria-haspopup="tree" aria-expanded="false">${displayPath}</button><div class="mobile-tabs" role="tablist" aria-label="Translation panes"><button class="button" type="button" role="tab" data-tab="original" aria-selected="${pane === "original"}" tabindex="${pane === "original" ? 0 : -1}">Original</button><button class="button" type="button" role="tab" data-tab="translation" aria-selected="${pane === "translation"}" tabindex="${pane === "translation" ? 0 : -1}">Translation</button></div></div><div class="toolbar-group"><span class="egress">Eligible content is sent to Google</span><button class="button" type="button" data-action="translate" aria-pressed="${translationOn}">${translationOn ? "Translation on" : "Translate"}</button><button class="button optional" type="button" data-action="feedback">Reveal</button></div></div>${tree()}<div class="viewer-grid ${translationOn ? "translation-on" : ""}" data-pane="${pane}"><article class="viewer viewer-original" role="tabpanel"><div class="pane-label">Original</div><h1 class="doc-title">Frontend design</h1><p>Build interfaces that make the primary task obvious and keep secondary controls close to their consequences.</p><h2>Workflow</h2><p>Start with the existing interface. Remove concepts that do not support the repeated task.</p><pre><code>const shell = "desktop";\nconst density = 8;</code></pre><p>Keep command feedback specific. Inventory determines observable outcomes.</p></article><article class="viewer translation-pane" role="tabpanel" lang="zh-CN"><div class="pane-label">简体中文</div><h1 class="doc-title">前端设计</h1><p>构建能够明确主要任务的界面，并让次要控件靠近它们影响的内容。</p><h2>工作流</h2><p>从现有界面开始，移除与重复任务无关的概念。</p><pre><code>const shell = "desktop";\nconst density = 8;</code></pre><p>命令反馈应准确。Inventory 决定可观察到的结果。</p></article></div></section>`;
+      }
+
+      function emptyDetail() {
+        return `<section class="detail detail-empty" aria-label="No Skill selected"><div role="status"><h1>Select a Skill</h1><p>Choose an installed Skill to preview its files and available actions.</p></div></section>`;
+      }
+
+      function addSheet() {
+        return `<div class="sheet-layer" data-overlay><section class="sheet" role="dialog" aria-modal="true" aria-labelledby="add-title"><header class="sheet-head"><h2 id="add-title">Add Skill</h2><button class="button" type="button" data-close>Close</button></header><div class="sheet-body"><label class="field" for="skill-search">Search Skills<input id="skill-search" type="search" data-autofocus value="accessibility" /></label><div class="form-error" role="alert"><span>Catalog search is unavailable. Direct source install still works.</span><button class="button" type="button" data-action="feedback">Retry search</button></div><div><div class="result-row"><div><strong>web-accessibility-testing</strong><p>Keyboard and WCAG checks.</p></div><button class="button primary" type="button" data-action="feedback">Install</button></div><div class="result-row"><div><strong>react-test-patterns</strong><p>Focused React behavior tests.</p></div><button class="button primary" type="button" data-action="feedback">Install</button></div></div><label class="field" for="source-input">Install from source<input id="source-input" value="github.com/vercel-labs/agent-skills" /><span class="helper">May install every Skill found in this source.</span></label><div class="toolbar-group"><button class="button" type="button" data-action="feedback">Install source</button></div></div></section></div>`;
+      }
+
+      function themeTile(value, label, note) {
+        const swatches = value === "system" ? `<span><i></i><i></i></span><span><i></i><i></i></span><span><i></i><i></i></span>` : `<span></span><span></span><span></span>`;
+        return `<label class="theme-tile"><input type="radio" name="theme" value="${value}" ${themePreference === value ? "checked data-autofocus" : ""} /><span class="theme-swatch swatch-${value}" aria-hidden="true">${swatches}</span><strong>${label}</strong><small>${note}</small></label>`;
+      }
+
+      function settingsSheet() {
+        const themes = [["system", "System", "Default"], ["light", "Light", "Graphite"], ["dark", "Dark", "Graphite"], ["sand", "Sand", "Warm light"], ["plum", "Plum", "Deep dark"]].map(theme => themeTile(...theme)).join("");
+        return `<div class="sheet-layer" data-overlay><section class="sheet side" role="dialog" aria-modal="true" aria-labelledby="settings-title"><header class="sheet-head"><h2 id="settings-title">Settings</h2><button class="button" type="button" data-close>Close</button></header><div class="sheet-body"><section class="setting-group"><h3>Appearance</h3><div class="theme-options" role="radiogroup" aria-label="Theme">${themes}</div><p>Sand is warm and light. Plum is deep and dark.</p></section><section class="setting-group"><h3>Translation</h3><label class="field" for="language">Target language<select id="language"><option>System language: 简体中文 (Default)</option><option>English</option><option>日本語</option></select></label></section><section class="setting-group"><h3>Agents</h3><label class="choice"><input type="radio" name="agents" checked /><span>Automatically detect installed agents (Default)<small>Uses upstream CLI behavior.</small></span></label><label class="choice"><input type="radio" name="agents" /><span>Choose verified agents</span></label></section><section class="setting-group"><h3>Install mode</h3><label class="choice"><input type="radio" name="mode" checked /><span>Automatically choose link or copy (Default)</span></label><label class="choice"><input type="radio" name="mode" /><span>Always copy</span></label></section><section class="setting-group"><h3>Runtime</h3><span class="mono">skills@1.5.22</span></section></div></section></div>`;
+      }
+
+      function statusCopy() {
+        if (appState === "loading") return ["Loading Inventory", "Checking Node and skills CLI"];
+        if (appState === "runtime") return ["Runtime unavailable", "Node and npx are required"];
+        if (appState === "partial") return ["Partial outcome", "2 of 3 Agent targets observed after refresh"];
+        if (appState === "error") return ["Refresh failed", "Inventory could not be refreshed. Retry available"];
+        return ["Ready", `${skills.length} global Skills`];
+      }
+
+      function content() {
+        if (appState === "loading") return `<div class="loading-content" aria-busy="true" aria-label="Loading Inventory"><div class="skeleton-list">${Array.from({length:6}, () => '<div class="skeleton-line"></div><div class="skeleton-line short"></div>').join("")}</div><div class="skeleton-view"><div class="skeleton-line short"></div>${Array.from({length:7}, () => '<div class="skeleton-line"></div>').join("")}</div></div>`;
+        if (appState === "runtime") return `<section class="runtime" role="alert"><h2>Node.js is unavailable</h2><p>Skill Deck uses Node and npx from the desktop process PATH. Install Node.js 22.20.0 or later, then retry. Management and Preview stay unavailable until the runtime check passes.</p><pre>node: not found\nnpx: not found</pre><div class="toolbar-group"><button class="button primary" type="button" data-action="feedback">Retry</button><button class="button" type="button" data-sheet="settings" data-trigger="settings-runtime">Settings</button></div></section>`;
+        const inline = appState === "partial" ? `<div class="inline-message"><span>Update completed with partial Agent results. Inventory was refreshed.</span><button class="button" data-action="feedback">Show diagnostics</button></div>` : appState === "error" ? `<div class="inline-message" role="alert"><span>Inventory refresh failed. Existing session results remain visible.</span><button class="button" data-action="feedback">Retry refresh</button></div>` : "";
+        return `${inline}<main class="workspace">${sourceList()}${selectedId ? detail() : emptyDetail()}</main>`;
+      }
+
+      function render() {
+        const selected = skills.find(skill => skill.id === selectedId) ?? null;
+        const disabled = appState === "loading" || appState === "runtime";
+        const [status, detailStatus] = statusCopy();
+        document.getElementById("app").innerHTML = `<div class="window ${translationOn ? "translation-mode" : ""}" data-view="${view}" data-theme="${resolvedTheme()}"><header class="toolbar"><div class="toolbar-group"><button class="button back-button" type="button" data-action="back">Back</button><span class="brand"><span class="brand-mark">S</span>Skill Deck</span></div><div class="toolbar-group toolbar-center"><label class="sr-only" for="installed-filter">Filter Installed Skills</label><input id="installed-filter" class="search" type="search" placeholder="Filter Installed Skills" ${disabled ? "disabled" : ""} /></div><div class="toolbar-group toolbar-end"><label class="sr-only" for="prototype-state">Prototype state</label><select id="prototype-state" class="button optional" aria-label="Prototype state"><option value="ready" ${appState === "ready" ? "selected" : ""}>Ready</option><option value="loading" ${appState === "loading" ? "selected" : ""}>Loading</option><option value="runtime" ${appState === "runtime" ? "selected" : ""}>Runtime unavailable</option><option value="partial" ${appState === "partial" ? "selected" : ""}>Partial outcome</option><option value="error" ${appState === "error" ? "selected" : ""}>Refresh error</option></select><button class="button optional" type="button" data-action="feedback" ${disabled ? "disabled" : ""}>Update All</button><button class="button primary" type="button" data-sheet="add" data-trigger="add" ${disabled ? "disabled" : ""}>Add</button><button class="button" type="button" data-sheet="settings" data-trigger="settings">Settings</button></div></header><div class="content">${content()}</div><footer class="statusbar"><span class="status-text"><strong>${status}</strong> · ${detailStatus}</span><span class="mono">${selected ? selected.name : "No Skill selected"} · skills@1.5.22</span></footer>${sheet === "add" ? addSheet() : sheet === "settings" ? settingsSheet() : ""}</div>`;
+        decorateIcons();
+        document.querySelector(".window").dataset.palette = resolvedPalette();
+        const url = new URL(location.href); url.searchParams.set("variant", "G"); url.searchParams.set("view", view); url.searchParams.set("state", appState); selectedId ? url.searchParams.set("skill", selectedId) : url.searchParams.delete("skill"); url.searchParams.set("theme", themePreference); url.searchParams.delete("palette"); sheet ? url.searchParams.set("sheet", sheet) : url.searchParams.delete("sheet"); history.replaceState(null, "", url);
+        if (focusAfterRender) { const selector = focusAfterRender; focusAfterRender = null; queueMicrotask(() => document.querySelector(selector)?.focus()); }
+        else if (sheet) queueMicrotask(() => document.querySelector("[data-autofocus]")?.focus());
+      }
+
+      function resolvedTheme() { if (themePreference === "system") return colorSchemeQuery.matches ? "dark" : "light"; if (["light", "dark"].includes(themePreference)) return themePreference; return themePreference === "plum" ? "dark" : "light"; }
+      function resolvedPalette() { return ["sand", "plum"].includes(themePreference) ? themePreference : "azure"; }
+      function applyTheme() { const windowEl = document.querySelector(".window"); if (windowEl) { windowEl.dataset.theme = resolvedTheme(); windowEl.dataset.palette = resolvedPalette(); } const url = new URL(location.href); url.searchParams.set("theme", themePreference); url.searchParams.delete("palette"); history.replaceState(null, "", url); }
+
+      function openSheet(nextSheet, trigger) { returnFocusId = trigger?.dataset.trigger || null; sheet = nextSheet; render(); }
+      function closeSheet() { const selector = returnFocusId ? `[data-trigger="${returnFocusId}"]` : null; sheet = null; returnFocusId = null; focusAfterRender = selector; render(); }
+      function selectSkill(id, open) { selectedId = id; if (open) view = "preview"; focusAfterRender = open ? '[data-action="tree"]' : `[data-skill="${id}"]`; render(); }
+      function visibleTreeItems() { return [...document.querySelectorAll(".tree [role=treeitem]")]; }
+
+      document.addEventListener("click", event => {
+        const source = event.target.closest("[data-skill]"); if (source) return selectSkill(source.dataset.skill, window.innerWidth <= 820);
+        const target = event.target.closest("button"); if (!target) { if (event.target.matches("[data-overlay]")) closeSheet(); return; }
+        if (target.dataset.sheet) return openSheet(target.dataset.sheet, target);
+        if (target.hasAttribute("data-close")) return closeSheet();
+        if (target.dataset.action === "back") { view = "list"; return render(); }
+        if (target.dataset.action === "tree") { const treeEl = document.querySelector(".tree"); treeEl.hidden = !treeEl.hidden; target.setAttribute("aria-expanded", String(!treeEl.hidden)); if (!treeEl.hidden) queueMicrotask(() => treeEl.querySelector('[aria-current="true"]')?.focus()); }
+        if (target.dataset.file) { path = target.dataset.path; const triggerSelector = '[data-action="tree"]'; focusAfterRender = triggerSelector; return render(); }
+        if (target.dataset.action === "translate") { translationOn = !translationOn; focusAfterRender = '[data-action="translate"]'; return render(); }
+        if (target.dataset.tab) { pane = target.dataset.tab; focusAfterRender = `[data-tab="${pane}"]`; return render(); }
+        if (target.dataset.action === "feedback") document.querySelector(".status-text").innerHTML = "<strong>Prototype only</strong> · No command was run";
+      });
+
+      document.addEventListener("change", event => { if (event.target.name === "theme") { themePreference = event.target.value; applyTheme(); } else if (event.target.id === "prototype-state") { appState = event.target.value; render(); } });
+
+      document.addEventListener("keydown", event => {
+        const dialog = document.querySelector('[role="dialog"]');
+        if (dialog && event.key === "Tab") { const focusable = [...dialog.querySelectorAll('button:not([disabled]), input:not([disabled]), select:not([disabled]), [tabindex]:not([tabindex="-1"])')]; const first = focusable[0], last = focusable.at(-1); if (event.shiftKey && document.activeElement === first) { event.preventDefault(); last.focus(); } else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first.focus(); } return; }
+        if (event.key === "Escape" && sheet) { event.preventDefault(); return closeSheet(); }
+        const treeEl = document.querySelector(".tree");
+        if (treeEl && !treeEl.hidden) { const items = visibleTreeItems(); const index = items.indexOf(document.activeElement); if (event.key === "Escape") { event.preventDefault(); treeEl.hidden = true; const trigger = document.querySelector('[data-action="tree"]'); trigger.setAttribute("aria-expanded", "false"); return trigger.focus(); } if (["ArrowDown", "ArrowUp"].includes(event.key)) { event.preventDefault(); const next = event.key === "ArrowDown" ? Math.min(index + 1, items.length - 1) : Math.max(index - 1, 0); return items[next < 0 ? 0 : next].focus(); } if (event.key === "Enter" && document.activeElement?.dataset.file) { event.preventDefault(); path = document.activeElement.dataset.path; focusAfterRender = '[data-action="tree"]'; return render(); } }
+        const row = document.activeElement?.closest?.("[data-skill]");
+        if (row && ["ArrowDown", "ArrowUp"].includes(event.key)) { event.preventDefault(); const rows = [...document.querySelectorAll("[data-skill]")]; const index = rows.indexOf(row); const next = event.key === "ArrowDown" ? Math.min(index + 1, rows.length - 1) : Math.max(index - 1, 0); return rows[next].focus(); }
+        if (row && event.key === "Enter") { event.preventDefault(); return selectSkill(row.dataset.skill, window.innerWidth <= 820); }
+        if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "f") { event.preventDefault(); return document.querySelector("#installed-filter")?.focus(); }
+        if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "n" && appState !== "runtime" && appState !== "loading") { event.preventDefault(); return openSheet("add", document.querySelector('[data-trigger="add"]')); }
+        if ((event.metaKey || event.ctrlKey) && event.key === ",") { event.preventDefault(); return openSheet("settings", document.querySelector('[data-trigger="settings"]')); }
+      });
+      colorSchemeQuery.addEventListener("change", () => { if (themePreference === "system") applyTheme(); });
+      render();
+    </script>
+  </body>
+</html>
