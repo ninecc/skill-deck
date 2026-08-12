@@ -1,0 +1,2 @@
+{"file":".trellis/spec/frontend/index.md","reason":"Preserve the frontend package scope and distinguish active specifications from historical task artifacts while removing visual baseline authority."}
+{"file":".trellis/spec/frontend/quality-guidelines.md","reason":"Keep the documentation-only change aligned with the frontend quality contract and avoid unintended production-code scope."}

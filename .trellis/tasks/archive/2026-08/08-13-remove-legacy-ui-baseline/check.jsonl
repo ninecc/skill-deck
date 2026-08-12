@@ -1,0 +1,2 @@
+{"file":".trellis/spec/frontend/index.md","reason":"Verify that the revised active guidance remains coherent with the frontend specification hierarchy."}
+{"file":".trellis/spec/frontend/quality-guidelines.md","reason":"Verify scope containment, documentation consistency, and that no production UI behavior is changed."}
