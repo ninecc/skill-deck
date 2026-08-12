@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { Icon } from "./icons";
 import type { Messages } from "./i18n";
 import {
@@ -7,6 +8,7 @@ import {
   type Preferences,
   type TargetLanguage,
   type Theme,
+  validateTranslationProxy,
 } from "./preferences";
 
 interface Props {
@@ -24,6 +26,8 @@ export default function SettingsDialog({
   onChange,
   onClose,
 }: Props) {
+  const [proxyDraft, setProxyDraft] = useState(preferences.translationProxy);
+  const [proxyError, setProxyError] = useState(false);
   const patch = (next: Partial<Preferences>) =>
     onChange({ ...preferences, ...next });
   return (
@@ -87,6 +91,35 @@ export default function SettingsDialog({
             ))}
           </select>
         </label>
+        <label className="field">
+          {copy.translationProxy}
+          <input
+            value={proxyDraft}
+            placeholder="http://127.0.0.1:7890"
+            aria-invalid={proxyError}
+            onChange={(event) => {
+              setProxyDraft(event.target.value);
+              setProxyError(false);
+            }}
+          />
+          <small>{copy.translationProxyHint}</small>
+          {proxyError && (
+            <span className="field-error">{copy.invalidProxy}</span>
+          )}
+        </label>
+        <button
+          type="button"
+          onClick={() => {
+            const value = proxyDraft.trim();
+            if (validateTranslationProxy(value)) {
+              setProxyError(true);
+              return;
+            }
+            patch({ translationProxy: value });
+          }}
+        >
+          {copy.applyProxy}
+        </button>
         <fieldset>
           <legend>{copy.agentTargets}</legend>
           <label className="choice">

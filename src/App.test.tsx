@@ -67,20 +67,98 @@ describe("CLI-backed workspace", () => {
     ).toBe("false");
   });
 
+  it("renders startup chrome before the runtime probe completes", async () => {
+    invokeMock.mockImplementation(() => new Promise(() => undefined));
+    await act(async () => root.render(<App />));
+    expect(container.textContent).toContain("Skill Deck");
+    expect(container.textContent).toContain("Connecting to the Skills CLI");
+    expect(
+      (container.querySelector(".bar-actions .button") as HTMLButtonElement)
+        .disabled,
+    ).toBe(true);
+    expect(container.querySelector('[aria-label="Settings"]')).not.toBeNull();
+    expect(container.querySelector('[aria-label="Language"]')).not.toBeNull();
+  });
+
+  it("persists a translation proxy only after valid Apply", async () => {
+    invokeMock.mockImplementation(() => new Promise(() => undefined));
+    await act(async () => root.render(<App />));
+    await act(async () =>
+      (
+        container.querySelector('[aria-label="Settings"]') as HTMLButtonElement
+      ).click(),
+    );
+    const input = container.querySelector(
+      'input[placeholder="http://127.0.0.1:7890"]',
+    ) as HTMLInputElement;
+    const apply = Array.from(container.querySelectorAll("button")).find(
+      (button) => button.textContent === "Apply proxy",
+    ) as HTMLButtonElement;
+    const setInput = (value: string) => {
+      Object.getOwnPropertyDescriptor(
+        HTMLInputElement.prototype,
+        "value",
+      )?.set?.call(input, value);
+      input.dispatchEvent(new Event("input", { bubbles: true }));
+    };
+    await act(async () => {
+      setInput("http://user:secret@proxy.example");
+    });
+    await act(async () => apply.click());
+    expect(localStorage.getItem("skill-deck-preferences")).not.toContain(
+      "secret",
+    );
+    await act(async () => {
+      setInput("http://127.0.0.1:7890");
+    });
+    expect(localStorage.getItem("skill-deck-preferences")).not.toContain(
+      "7890",
+    );
+    await act(async () => apply.click());
+    expect(localStorage.getItem("skill-deck-preferences")).toContain("7890");
+  });
+
   it("blocks the workspace when the runtime probe fails", async () => {
     invokeMock.mockImplementation((command: string) =>
       command === "runtime_status"
         ? Promise.resolve({
             ready: false,
+            errorCode: "runtime_not_found",
             version: null,
             nodeVersion: null,
-            message: "Install Node.js 22.20.0 or newer",
+            message: "spawn node failed: os error 2; PATH=/usr/bin",
           })
         : Promise.reject(new Error("blocked")),
     );
     await act(async () => root.render(<App />));
-    expect(container.textContent).toContain("Install Node.js 22.20.0 or newer");
-    expect(container.textContent).not.toContain("Installed Skills");
+    expect(container.textContent).toContain(
+      "could not find a supported Node.js and npx installation",
+    );
+    expect(container.textContent).toContain("Install Node.js 22.20 or newer");
+    expect(container.textContent).not.toContain("os error");
+    expect(container.textContent).not.toContain("PATH=");
+    expect(container.querySelector(".workspace")?.hasAttribute("inert")).toBe(
+      true,
+    );
+  });
+
+  it("localizes actionable runtime failures", async () => {
+    localStorage.setItem("skill-deck-locale", "zh-CN");
+    invokeMock.mockImplementation((command: string) =>
+      command === "runtime_status"
+        ? Promise.resolve({
+            ready: false,
+            errorCode: "node_too_old",
+            version: null,
+            nodeVersion: null,
+            message: "raw backend detail",
+          })
+        : Promise.reject(new Error("blocked")),
+    );
+    await act(async () => root.render(<App />));
+    expect(container.textContent).toContain("已安装的 Node.js 版本过低");
+    expect(container.textContent).toContain("请升级到 Node.js 22.20");
+    expect(container.textContent).not.toContain("raw backend detail");
   });
 
   it("keeps Markdown resources inert and lets unsupported files be selected", async () => {
@@ -155,5 +233,114 @@ describe("CLI-backed workspace", () => {
     expect(
       container.querySelector('[aria-label="Reveal file"]'),
     ).not.toBeNull();
+  });
+
+  it("keeps original content and retries sanitized translation failures", async () => {
+    let translations = 0;
+    let resolveStale: ((value: unknown) => void) | undefined;
+    invokeMock.mockImplementation((command: string) => {
+      if (command === "runtime_status")
+        return Promise.resolve({
+          ready: true,
+          version: "1.5.22",
+          nodeVersion: "22.20.0",
+          message: null,
+        });
+      if (command === "list_skills")
+        return Promise.resolve([
+          {
+            name: "demo",
+            path: "/tmp/demo",
+            scope: "global",
+            agents: [],
+            source: null,
+            sourceUrl: null,
+            sourceType: null,
+          },
+        ]);
+      if (command === "preview_tree")
+        return Promise.resolve([
+          {
+            path: "SKILL.md",
+            name: "SKILL.md",
+            level: 1,
+            directory: false,
+            size: 12,
+            viewer: "markdown",
+            unsupportedReason: null,
+          },
+        ]);
+      if (command === "read_preview")
+        return Promise.resolve({
+          path: "SKILL.md",
+          viewer: "markdown",
+          size: 12,
+          text: "secret source",
+          dataUrl: null,
+          translatable: true,
+        });
+      if (command === "translate_preview") {
+        translations += 1;
+        if (translations === 1)
+          return Promise.reject({
+            code: "translation_timeout",
+            message: "https://translate.googleapis.com/?q=secret",
+          });
+        if (translations === 2)
+          return Promise.resolve({
+            translatedText: "translated",
+            detectedSourceLanguage: "en",
+          });
+        if (translations === 3)
+          return new Promise((resolve) => {
+            resolveStale = resolve;
+          });
+        return new Promise(() => undefined);
+      }
+      return Promise.reject(new Error(`Unexpected command: ${command}`));
+    });
+    await act(async () => root.render(<App />));
+    await act(async () =>
+      (container.querySelector('[role="option"]') as HTMLButtonElement).click(),
+    );
+    const translate = Array.from(container.querySelectorAll("button")).find(
+      (button) => button.textContent?.includes("Translate"),
+    ) as HTMLButtonElement;
+    await act(async () => translate.click());
+    expect(container.textContent).toContain("secret source");
+    expect(container.textContent).toContain("Translation timed out");
+    expect(container.textContent).not.toContain("translate.googleapis.com");
+    const retry = Array.from(container.querySelectorAll("button")).find(
+      (button) => button.textContent === "Retry",
+    ) as HTMLButtonElement;
+    await act(async () => retry.click());
+    expect(container.textContent).toContain("translated");
+    expect(translations).toBe(2);
+
+    await act(async () =>
+      (
+        container.querySelector('[aria-label="Settings"]') as HTMLButtonElement
+      ).click(),
+    );
+    const target = container.querySelector(
+      ".field select",
+    ) as HTMLSelectElement;
+    const setTarget = (value: string) => {
+      Object.getOwnPropertyDescriptor(
+        HTMLSelectElement.prototype,
+        "value",
+      )?.set?.call(target, value);
+      target.dispatchEvent(new Event("change", { bubbles: true }));
+    };
+    await act(async () => setTarget("ja"));
+    await act(async () => setTarget("ko"));
+    await act(async () =>
+      resolveStale?.({
+        translatedText: "stale translation",
+        detectedSourceLanguage: "en",
+      }),
+    );
+    await act(async () => setTarget("ja"));
+    expect(container.textContent).not.toContain("stale translation");
   });
 });

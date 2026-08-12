@@ -1,7 +1,8 @@
 use serde::{Deserialize, Serialize};
 use std::{
     collections::{BTreeMap, BTreeSet},
-    path::PathBuf,
+    ffi::OsStr,
+    path::{Path, PathBuf},
     process::{Command, Output},
     sync::{Mutex, MutexGuard},
 };
@@ -46,6 +47,7 @@ impl CommandError {
 #[serde(rename_all = "camelCase")]
 pub struct RuntimeStatus {
     pub ready: bool,
+    pub error_code: Option<&'static str>,
     pub version: Option<String>,
     pub node_version: Option<String>,
     pub message: Option<String>,
@@ -113,6 +115,14 @@ enum ExpectedMutation<'a> {
 struct Session {
     version: String,
     node_version: String,
+    _node: PathBuf,
+    npx: PathBuf,
+}
+
+#[derive(Debug)]
+struct Toolchain {
+    node: PathBuf,
+    npx: PathBuf,
 }
 
 #[derive(Default)]
@@ -127,12 +137,14 @@ impl CliManager {
         match self.ensure_session() {
             Ok(session) => Ok(RuntimeStatus {
                 ready: true,
+                error_code: None,
                 version: Some(session.version),
                 node_version: Some(session.node_version),
                 message: None,
             }),
             Err(error) => Ok(RuntimeStatus {
                 ready: false,
+                error_code: Some(error.code),
                 version: None,
                 node_version: None,
                 message: Some(error.message),
@@ -230,7 +242,8 @@ impl CliManager {
         if let Some(session) = guard.clone() {
             return Ok(session);
         }
-        let node = run("node", &["--version"], "runtime probe")?;
+        let toolchain = resolve_system_toolchain()?;
+        let node = run(&toolchain.node, &["--version"], "runtime probe")?;
         let node_version = utf8_stdout(&node, "node version")?
             .trim()
             .trim_start_matches('v')
@@ -242,7 +255,7 @@ impl CliManager {
             ));
         }
         let output = run(
-            "npx",
+            &toolchain.npx,
             &["--yes", "skills@latest", "--version"],
             "version resolution",
         )?;
@@ -259,6 +272,8 @@ impl CliManager {
         let session = Session {
             version,
             node_version,
+            _node: toolchain.node,
+            npx: toolchain.npx,
         };
         self.list_with(&session)?;
         *guard = Some(session.clone());
@@ -267,7 +282,11 @@ impl CliManager {
 
     fn list_with(&self, session: &Session) -> Result<Vec<InstalledSkill>, CommandError> {
         let package = format!("skills@{}", session.version);
-        let output = run("npx", &["--yes", &package, "list", "-g", "--json"], "list")?;
+        let output = run(
+            &session.npx,
+            &["--yes", &package, "list", "-g", "--json"],
+            "list",
+        )?;
         let stdout = utf8_stdout(&output, "Skills inventory")?;
         let inventory = decode_inventory(&session.version, stdout)?;
         let roots = inventory
@@ -294,7 +313,7 @@ impl CliManager {
         let mut command_args = vec!["--yes".to_owned(), package];
         command_args.extend(args);
         let refs: Vec<_> = command_args.iter().map(String::as_str).collect();
-        let output = run("npx", &refs, operation)?;
+        let output = run(&session.npx, &refs, operation)?;
         let after = self.list_with(&session)?;
         let before_by_name: BTreeMap<_, _> = before
             .iter()
@@ -390,11 +409,72 @@ fn parse_version(value: &str) -> Option<(u64, u64, u64)> {
     Some((parts.next()??, parts.next()??, parts.next()??))
 }
 
-fn run(program: &str, args: &[&str], operation: &str) -> Result<Output, CommandError> {
-    let output = cli_command(program, args).output().map_err(|error| {
+fn resolve_system_toolchain() -> Result<Toolchain, CommandError> {
+    #[cfg(target_os = "macos")]
+    let fallbacks = [
+        PathBuf::from("/opt/homebrew/bin"),
+        PathBuf::from("/usr/local/bin"),
+    ];
+    #[cfg(not(target_os = "macos"))]
+    let fallbacks: [PathBuf; 0] = [];
+    resolve_toolchain(std::env::var_os("PATH").as_deref(), &fallbacks)
+}
+
+fn resolve_toolchain(
+    path: Option<&OsStr>,
+    fallbacks: &[PathBuf],
+) -> Result<Toolchain, CommandError> {
+    let inherited = path.into_iter().flat_map(std::env::split_paths);
+    for directory in inherited.chain(fallbacks.iter().cloned()) {
+        let directory = if directory.is_absolute() {
+            directory
+        } else {
+            let Ok(current_dir) = std::env::current_dir() else {
+                continue;
+            };
+            current_dir.join(directory)
+        };
+        let node = directory.join(executable_name("node"));
+        let npx = directory.join(executable_name("npx"));
+        if is_executable(&node) && is_executable(&npx) {
+            return Ok(Toolchain { node, npx });
+        }
+    }
+    Err(runtime_not_found())
+}
+
+fn executable_name(name: &str) -> String {
+    #[cfg(windows)]
+    return format!("{name}.{}", if name == "node" { "exe" } else { "cmd" });
+    #[cfg(not(windows))]
+    name.to_owned()
+}
+
+fn is_executable(path: &Path) -> bool {
+    let Ok(metadata) = path.metadata() else {
+        return false;
+    };
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        metadata.is_file() && metadata.permissions().mode() & 0o111 != 0
+    }
+    #[cfg(not(unix))]
+    metadata.is_file()
+}
+
+fn runtime_not_found() -> CommandError {
+    CommandError::new(
+        "runtime_not_found",
+        "Node.js and npx were not found in a supported installation location.",
+    )
+}
+
+fn run(program: &Path, args: &[&str], operation: &str) -> Result<Output, CommandError> {
+    let output = cli_command(program, args).output().map_err(|_| {
         CommandError::new(
             "runtime_unavailable",
-            format!("Could not run {program} from the app PATH: {error}"),
+            "The Node.js toolchain could not run.",
         )
     })?;
     if !output.status.success() {
@@ -403,9 +483,21 @@ fn run(program: &str, args: &[&str], operation: &str) -> Result<Output, CommandE
     Ok(output)
 }
 
-fn cli_command(program: &str, args: &[&str]) -> Command {
+fn cli_command(program: &Path, args: &[&str]) -> Command {
     let mut command = Command::new(program);
     command.args(args).env("DO_NOT_TRACK", "1");
+    if program.is_absolute() {
+        let inherited_path = std::env::var_os("PATH");
+        let path = program.parent().into_iter().map(Path::to_path_buf).chain(
+            inherited_path
+                .as_deref()
+                .into_iter()
+                .flat_map(std::env::split_paths),
+        );
+        if let Ok(path) = std::env::join_paths(path) {
+            command.env("PATH", path);
+        }
+    }
     command
 }
 
@@ -432,6 +524,14 @@ fn diagnostic(output: &Output) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[cfg(unix)]
+    use std::{fs, os::unix::fs::PermissionsExt};
+
+    #[cfg(unix)]
+    fn executable(path: &std::path::Path) {
+        fs::write(path, "#!/bin/sh\n").unwrap();
+        fs::set_permissions(path, fs::Permissions::from_mode(0o755)).unwrap();
+    }
 
     #[test]
     fn parses_open_agent_inventory_and_rejects_wrong_shape() {
@@ -491,10 +591,96 @@ mod tests {
     }
 
     #[test]
+    fn runtime_status_serializes_a_stable_error_code() {
+        let value = serde_json::to_value(RuntimeStatus {
+            ready: false,
+            error_code: Some("runtime_not_found"),
+            version: None,
+            node_version: None,
+            message: Some("internal detail".into()),
+        })
+        .unwrap();
+        assert_eq!(value["errorCode"], "runtime_not_found");
+    }
+
+    #[test]
+    fn spawn_failures_do_not_expose_paths_or_os_errors() {
+        let root = tempfile::tempdir().unwrap();
+        let program = root.path().join("missing-node");
+        let error = run(&program, &["--version"], "runtime probe").unwrap_err();
+        assert_eq!(error.code, "runtime_unavailable");
+        assert_eq!(error.message, "The Node.js toolchain could not run.");
+        assert!(!error.message.contains(program.to_string_lossy().as_ref()));
+        assert!(error.diagnostics.is_none());
+    }
+
+    #[test]
     fn every_cli_process_disables_telemetry() {
-        let command = cli_command("npx", &["--yes", "skills@1.5.22", "list"]);
+        let command = cli_command(Path::new("npx"), &["--yes", "skills@1.5.22", "list"]);
         assert!(command
             .get_envs()
             .any(|(key, value)| key == "DO_NOT_TRACK" && value == Some(std::ffi::OsStr::new("1"))));
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn toolchain_resolver_prefers_path_then_fallbacks_and_requires_siblings() {
+        let root = tempfile::tempdir().unwrap();
+        let inherited = root.path().join("inherited");
+        let fallback = root.path().join("fallback");
+        fs::create_dir_all(&inherited).unwrap();
+        fs::create_dir_all(&fallback).unwrap();
+        executable(&fallback.join("node"));
+        executable(&fallback.join("npx"));
+
+        let resolved =
+            resolve_toolchain(Some(inherited.as_os_str()), std::slice::from_ref(&fallback))
+                .unwrap();
+        assert_eq!(resolved.node, fallback.join("node"));
+        assert_eq!(resolved.npx, fallback.join("npx"));
+
+        executable(&inherited.join("node"));
+        assert!(resolve_toolchain(Some(inherited.as_os_str()), &[]).is_err());
+        executable(&inherited.join("npx"));
+        let resolved = resolve_toolchain(Some(inherited.as_os_str()), &[fallback]).unwrap();
+        assert_eq!(resolved.node, inherited.join("node"));
+        assert_eq!(resolved.npx, inherited.join("npx"));
+        assert!(resolved.node.is_absolute());
+        assert!(resolved.npx.is_absolute());
+        let command = cli_command(&resolved.npx, &["--version"]);
+        let child_path = command
+            .get_envs()
+            .find_map(|(key, value)| (key == "PATH").then_some(value.unwrap()))
+            .unwrap();
+        assert_eq!(std::env::split_paths(child_path).next().unwrap(), inherited);
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn toolchain_resolver_rejects_non_executable_candidates() {
+        let root = tempfile::tempdir().unwrap();
+        fs::write(root.path().join("node"), "node").unwrap();
+        fs::write(root.path().join("npx"), "npx").unwrap();
+        assert_eq!(
+            resolve_toolchain(Some(root.path().as_os_str()), &[])
+                .unwrap_err()
+                .code,
+            "runtime_not_found"
+        );
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn toolchain_resolver_normalizes_relative_path_entries() {
+        let root = tempfile::tempdir_in(".").unwrap();
+        executable(&root.path().join("node"));
+        executable(&root.path().join("npx"));
+        let relative = Path::new(root.path().file_name().unwrap());
+
+        let resolved = resolve_toolchain(Some(relative.as_os_str()), &[]).unwrap();
+
+        assert!(resolved.node.is_absolute());
+        assert!(resolved.npx.is_absolute());
+        assert_eq!(resolved.node.parent(), resolved.npx.parent());
     }
 }

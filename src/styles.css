@@ -491,13 +491,23 @@ select:focus-visible {
   display: none;
 }
 .runtime-screen {
-  min-height: 100vh;
+  grid-row: 2 / -1;
+  min-height: 0;
   display: grid;
   place-content: center;
   justify-items: center;
   padding: 30px;
   text-align: center;
   background: var(--window);
+}
+.status + .workspace {
+  grid-row: auto;
+}
+.workspace {
+  grid-row: 2 / -1;
+}
+.workspace[inert] {
+  visibility: hidden;
 }
 .runtime-screen p {
   max-width: 620px;
@@ -539,8 +549,13 @@ select:focus-visible {
 .field {
   font-weight: 700;
 }
-.field select {
+.field select,
+.field input {
   padding: 8px;
+  font-weight: 400;
+}
+.field-error {
+  color: var(--danger);
   font-weight: 400;
 }
 .theme-grid {

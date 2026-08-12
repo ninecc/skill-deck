@@ -9,6 +9,7 @@ import {
 import ReactMarkdown from "react-markdown";
 import {
   addSkill,
+  commandErrorCode,
   commandErrorMessage,
   listSkills,
   previewTree,
@@ -76,6 +77,22 @@ export default function App() {
   const [notice, setNotice] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const previewRequest = useRef(0);
+  const translationRequest = useRef(0);
+  const [translationRetry, setTranslationRetry] = useState(0);
+
+  function invalidateTranslation() {
+    translationRequest.current += 1;
+    setTranslationState(null);
+  }
+
+  function changePreferences(next: Preferences) {
+    if (
+      next.targetLanguage !== preferences.targetLanguage ||
+      next.translationProxy !== preferences.translationProxy
+    )
+      invalidateTranslation();
+    setPreferences(next);
+  }
 
   const refresh = useCallback(() => listSkills().then(setInventory), []);
   useEffect(() => {
@@ -125,23 +142,67 @@ export default function App() {
   }, [selected]);
 
   useEffect(() => {
+    const request = ++translationRequest.current;
     if (!translationOn || !selected || !file?.translatable) return;
-    const key = `${selected}\n${file.path}\n${preferences.targetLanguage}`;
-    void translatePreview(selected, file.path, preferences.targetLanguage)
-      .then((result) =>
-        setTranslationState({ key, text: result.translatedText }),
-      )
-      .catch((value: unknown) =>
-        setTranslationState({ key, error: commandErrorMessage(value) }),
-      );
-  }, [translationOn, selected, file, preferences.targetLanguage]);
+    const key = `${selected}\n${file.path}\n${preferences.targetLanguage}\n${preferences.translationProxy}`;
+    void translatePreview(
+      selected,
+      file.path,
+      preferences.targetLanguage,
+      preferences.translationProxy,
+    )
+      .then((result) => {
+        if (translationRequest.current === request)
+          setTranslationState({ key, text: result.translatedText });
+      })
+      .catch((value: unknown) => {
+        if (translationRequest.current !== request) return;
+        const code = commandErrorCode(value);
+        setTranslationState({
+          key,
+          error:
+            code === "invalid_proxy"
+              ? copy.invalidProxy
+              : code === "translation_timeout"
+                ? copy.translationTimedOut
+                : code === "translation_unavailable" ||
+                    code === "translation_response"
+                  ? copy.translationUnavailable
+                  : commandErrorMessage(value),
+        });
+      });
+  }, [
+    translationOn,
+    selected,
+    file,
+    preferences.targetLanguage,
+    preferences.translationProxy,
+    translationRetry,
+    copy.invalidProxy,
+    copy.translationTimedOut,
+    copy.translationUnavailable,
+  ]);
 
   const translationKey =
     selected && file
-      ? `${selected}\n${file.path}\n${preferences.targetLanguage}`
+      ? `${selected}\n${file.path}\n${preferences.targetLanguage}\n${preferences.translationProxy}`
       : null;
   const currentTranslation =
     translationState?.key === translationKey ? translationState : null;
+
+  const runtimeFailure = (() => {
+    if (!runtime || runtime.ready) return null;
+    switch (runtime.errorCode) {
+      case "runtime_not_found":
+        return [copy.runtimeNotFound, copy.runtimeNotFoundHint];
+      case "node_too_old":
+        return [copy.runtimeTooOld, copy.runtimeTooOldHint];
+      case "incompatible_cli":
+        return [copy.runtimeIncompatible, copy.runtimeIncompatibleHint];
+      default:
+        return [copy.runtimeUnavailable, copy.runtimeUnavailableHint];
+    }
+  })();
 
   const visible = useMemo(() => {
     const query = filter.trim().toLowerCase();
@@ -189,6 +250,7 @@ export default function App() {
   function chooseFile(entry: FileEntry) {
     if (!selected || entry.directory) return;
     const request = ++previewRequest.current;
+    invalidateTranslation();
     setTreeOpen(false);
     if (entry.unsupportedReason) {
       setFile({
@@ -202,6 +264,7 @@ export default function App() {
       });
       return;
     }
+    setFile(null);
     void readPreview(selected, entry.path)
       .then((content) => {
         if (previewRequest.current === request) setFile(content);
@@ -214,6 +277,7 @@ export default function App() {
 
   function chooseSkill(name: string) {
     previewRequest.current += 1;
+    invalidateTranslation();
     setTree([]);
     setFile(null);
     setSelected(name);
@@ -231,32 +295,6 @@ export default function App() {
     rows[index + (event.key === "ArrowDown" ? 1 : -1)]?.focus();
   }
 
-  if (!runtime)
-    return (
-      <main className="runtime-screen">
-        <p>{copy.loading}</p>
-        {error && <pre className="error">{error}</pre>}
-      </main>
-    );
-  if (!runtime.ready)
-    return (
-      <main className="runtime-screen">
-        <h1>Skill Deck</h1>
-        <p>{runtime.message}</p>
-        <button
-          type="button"
-          onClick={() =>
-            void retryRuntime().then((status) => {
-              setRuntime(status);
-              if (status.ready) void refresh();
-            })
-          }
-        >
-          {copy.retry}
-        </button>
-      </main>
-    );
-
   return (
     <main className="app-shell">
       <header className="app-bar">
@@ -268,7 +306,7 @@ export default function App() {
           <button
             type="button"
             className="button"
-            disabled={busy !== null}
+            disabled={!runtime?.ready || busy !== null}
             onClick={() =>
               window.confirm(copy.confirmUpdateAll) &&
               perform("update-all", () => updateSkill(null), copy.refreshed)
@@ -300,12 +338,46 @@ export default function App() {
           </select>
         </div>
       </header>
-      {(notice || error) && (
+      {runtime?.ready && (notice || error) && (
         <div className={error ? "status error" : "status"}>
           {error ?? notice}
         </div>
       )}
-      <div className="workspace">
+      {!runtime?.ready && (
+        <section className="runtime-screen" aria-live="polite">
+          {runtimeFailure || error ? (
+            <>
+              <h1>{copy.runtimeErrorTitle}</h1>
+              <p>{runtimeFailure?.[0] ?? copy.runtimeUnavailable}</p>
+              <small>
+                {runtimeFailure?.[1] ?? copy.runtimeUnavailableHint}
+              </small>
+            </>
+          ) : (
+            <p>{copy.loading}</p>
+          )}
+          {(runtime || error) && (
+            <button
+              type="button"
+              onClick={() => {
+                setRuntime(null);
+                setError(null);
+                void retryRuntime()
+                  .then((status) => {
+                    setRuntime(status);
+                    if (status.ready) void refresh();
+                  })
+                  .catch((value: unknown) =>
+                    setError(commandErrorMessage(value)),
+                  );
+              }}
+            >
+              {copy.retry}
+            </button>
+          )}
+        </section>
+      )}
+      <div className="workspace" inert={!runtime?.ready ? true : undefined}>
         <aside className="inventory-pane" aria-labelledby="installed-heading">
           <div className="pane-heading">
             <div>
@@ -526,7 +598,10 @@ export default function App() {
                       <button
                         type="button"
                         aria-pressed={translationOn}
-                        onClick={() => setTranslationOn((on) => !on)}
+                        onClick={() => {
+                          invalidateTranslation();
+                          setTranslationOn((on) => !on);
+                        }}
                       >
                         <Icon name="translate" />
                         {translationOn ? copy.translationOn : copy.translate}
@@ -608,10 +683,23 @@ export default function App() {
                 {translationOn && file?.translatable && (
                   <article className="viewer translation-view">
                     <h2>{copy.translation}</h2>
-                    {!currentTranslation ? (
+                    {!currentTranslation ||
+                    (currentTranslation.text === undefined &&
+                      !currentTranslation.error) ? (
                       <p>{copy.loading}</p>
                     ) : currentTranslation.error ? (
-                      <pre className="error">{currentTranslation.error}</pre>
+                      <div className="translation-error">
+                        <p className="error">{currentTranslation.error}</p>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            invalidateTranslation();
+                            setTranslationRetry((value) => value + 1);
+                          }}
+                        >
+                          {copy.retry}
+                        </button>
+                      </div>
                     ) : file.viewer === "markdown" ? (
                       <ReactMarkdown skipHtml components={markdownComponents}>
                         {currentTranslation.text ?? ""}
@@ -629,9 +717,9 @@ export default function App() {
       {settingsOpen && (
         <SettingsDialog
           copy={copy}
-          version={runtime.version}
+          version={runtime?.version ?? null}
           preferences={preferences}
-          onChange={setPreferences}
+          onChange={changePreferences}
           onClose={() => setSettingsOpen(false)}
         />
       )}

@@ -8,6 +8,18 @@ export const catalogs = {
     noSkills: "No global Skills are installed.",
     chooseSkill: "Choose an installed Skill to preview its files.",
     loading: "Connecting to the Skills CLI…",
+    runtimeErrorTitle: "Skills CLI unavailable",
+    runtimeNotFound:
+      "Skill Deck could not find a supported Node.js and npx installation.",
+    runtimeNotFoundHint:
+      "Install Node.js 22.20 or newer, then reopen Skill Deck or retry.",
+    runtimeTooOld: "The installed Node.js version is too old.",
+    runtimeTooOldHint: "Upgrade to Node.js 22.20 or newer, then retry.",
+    runtimeIncompatible: "This Skills CLI version is not compatible.",
+    runtimeIncompatibleHint: "Upgrade Skill Deck, then retry.",
+    runtimeUnavailable: "The Node.js toolchain could not start.",
+    runtimeUnavailableHint:
+      "Check the Node.js installation, then reopen Skill Deck or retry.",
     retry: "Retry",
     installSource: "Install from source",
     sourceHint:
@@ -33,6 +45,15 @@ export const catalogs = {
     unsupported: "This file type cannot be previewed inside Skill Deck.",
     appearance: "Appearance",
     targetLanguage: "Translation target",
+    translationProxy: "Translation proxy",
+    translationProxyHint:
+      "Optional. Blank uses automatic environment networking.",
+    invalidProxy: "Use an HTTP(S) URL with a host and no credentials or path.",
+    applyProxy: "Apply proxy",
+    translationUnavailable:
+      "Translation is unavailable. Check the network or translation proxy.",
+    translationTimedOut:
+      "Translation timed out. Check the network or translation proxy.",
     agentTargets: "Agent targets for future installs",
     automaticAgents: "Automatically detect installed agents (Default)",
     installMethod: "Install method",
@@ -61,6 +82,17 @@ export const catalogs = {
     noSkills: "尚未安装全局 Skill。",
     chooseSkill: "选择一个已安装 Skill 以预览文件。",
     loading: "正在连接 Skills CLI…",
+    runtimeErrorTitle: "Skills CLI 不可用",
+    runtimeNotFound: "Skill Deck 未找到受支持的 Node.js 与 npx 安装。",
+    runtimeNotFoundHint:
+      "请安装 Node.js 22.20 或更高版本，然后重新打开 Skill Deck 或重试。",
+    runtimeTooOld: "已安装的 Node.js 版本过低。",
+    runtimeTooOldHint: "请升级到 Node.js 22.20 或更高版本，然后重试。",
+    runtimeIncompatible: "当前 Skills CLI 版本不兼容。",
+    runtimeIncompatibleHint: "请升级 Skill Deck，然后重试。",
+    runtimeUnavailable: "Node.js 工具链无法启动。",
+    runtimeUnavailableHint:
+      "请检查 Node.js 安装，然后重新打开 Skill Deck 或重试。",
     retry: "重试",
     installSource: "从 source 安装",
     sourceHint: "若 source 包含多个 Skill，非交互模式会安装全部 Skill。",
@@ -83,6 +115,12 @@ export const catalogs = {
     unsupported: "Skill Deck 无法内嵌预览此文件类型。",
     appearance: "外观",
     targetLanguage: "翻译目标语言",
+    translationProxy: "翻译代理",
+    translationProxyHint: "可选；留空时使用环境中的自动网络设置。",
+    invalidProxy: "请输入带 host 且不含凭据或路径的 HTTP(S) URL。",
+    applyProxy: "应用代理",
+    translationUnavailable: "翻译服务不可用，请检查网络或翻译代理。",
+    translationTimedOut: "翻译超时，请检查网络或翻译代理。",
     agentTargets: "后续安装使用的 Agent target",
     automaticAgents: "自动检测已安装的 Agent（默认）",
     installMethod: "安装方式",

@@ -3,9 +3,13 @@ use crate::{
     preview,
 };
 use serde::Serialize;
+use std::time::{Duration, Instant};
 
 const GOOGLE_ENDPOINT: &str = "https://translate.googleapis.com/translate_a/single";
 const CHUNK_CHARS: usize = 3_500;
+const MAX_PROXY_BYTES: usize = 2_048;
+const CONNECT_TIMEOUT: Duration = Duration::from_secs(5);
+const OPERATION_TIMEOUT: Duration = Duration::from_secs(15);
 const LANGUAGES: &[&str] = &[
     "en", "zh-Hans", "zh-Hant", "ja", "ko", "es", "fr", "de", "pt", "it", "ru", "ar", "hi",
 ];
@@ -22,6 +26,7 @@ pub fn translate_installed(
     skill: &str,
     path: &str,
     target_language: &str,
+    translation_proxy: &str,
 ) -> Result<TranslationResult, CommandError> {
     if !LANGUAGES.contains(&target_language) {
         return Err(CommandError::new(
@@ -29,6 +34,8 @@ pub fn translate_installed(
             "The selected translation language is not supported.",
         ));
     }
+    let deadline = Instant::now() + OPERATION_TIMEOUT;
+    let client = translation_client(translation_proxy)?;
     let content = preview::read(manager, skill, path)?;
     if !content.translatable {
         return Err(CommandError::new(
@@ -47,14 +54,14 @@ pub fn translate_installed(
     let mut detected = None;
     let translated_text = if markdown {
         map_markdown_prose(&text, |prose| {
-            let result = google_translate(prose, provider_target)?;
+            let result = google_translate(&client, deadline, prose, provider_target)?;
             if detected.is_none() {
                 detected = result.detected_source_language;
             }
             Ok(result.translated_text)
         })?
     } else {
-        let result = google_translate(&text, provider_target)?;
+        let result = google_translate(&client, deadline, &text, provider_target)?;
         detected = result.detected_source_language;
         result.translated_text
     };
@@ -64,18 +71,84 @@ pub fn translate_installed(
     })
 }
 
-fn google_translate(text: &str, target: &str) -> Result<TranslationResult, CommandError> {
+fn translation_client(proxy: &str) -> Result<reqwest::blocking::Client, CommandError> {
+    let mut builder = reqwest::blocking::Client::builder().connect_timeout(CONNECT_TIMEOUT);
+    if !proxy.is_empty() {
+        validate_proxy(proxy)?;
+        builder = builder.proxy(reqwest::Proxy::all(proxy).map_err(|_| invalid_proxy())?);
+    }
+    builder.build().map_err(|_| provider_unavailable())
+}
+
+fn validate_proxy(proxy: &str) -> Result<(), CommandError> {
+    if proxy.len() > MAX_PROXY_BYTES {
+        return Err(invalid_proxy());
+    }
+    let url = reqwest::Url::parse(proxy).map_err(|_| invalid_proxy())?;
+    let authority = proxy.split_once("://").map(|(_, value)| value);
+    if !matches!(url.scheme(), "http" | "https")
+        || url.host_str().is_none()
+        || authority.is_none_or(|value| value.contains(['/', '?', '#']))
+        || !url.username().is_empty()
+        || url.password().is_some()
+        || url.path() != "/"
+        || url.query().is_some()
+        || url.fragment().is_some()
+    {
+        return Err(invalid_proxy());
+    }
+    Ok(())
+}
+
+fn invalid_proxy() -> CommandError {
+    CommandError::new(
+        "invalid_proxy",
+        "Use an HTTP(S) proxy URL with a host and no credentials, path, query, or fragment.",
+    )
+}
+
+fn provider_unavailable() -> CommandError {
+    CommandError::new(
+        "translation_unavailable",
+        "Translation could not reach the provider. Check the network or translation proxy.",
+    )
+}
+
+fn incompatible_response() -> CommandError {
+    CommandError::new(
+        "translation_response",
+        "The translation provider returned an incompatible response.",
+    )
+}
+
+fn remaining(deadline: Instant) -> Result<Duration, CommandError> {
+    deadline
+        .checked_duration_since(Instant::now())
+        .ok_or_else(|| {
+            CommandError::new(
+                "translation_timeout",
+                "Translation timed out. Check the network or translation proxy and retry.",
+            )
+        })
+}
+
+fn google_translate(
+    client: &reqwest::blocking::Client,
+    deadline: Instant,
+    text: &str,
+    target: &str,
+) -> Result<TranslationResult, CommandError> {
     if text.trim().is_empty() {
         return Ok(TranslationResult {
             translated_text: text.into(),
             detected_source_language: None,
         });
     }
-    let client = reqwest::blocking::Client::new();
     let mut translated = String::new();
     let mut detected = None;
     for chunk in chunks(text, CHUNK_CHARS) {
-        let value: serde_json::Value = client
+        let timeout = remaining(deadline)?;
+        let response = client
             .get(GOOGLE_ENDPOINT)
             .query(&[
                 ("client", "gtx"),
@@ -84,34 +157,32 @@ fn google_translate(text: &str, target: &str) -> Result<TranslationResult, Comma
                 ("dt", "t"),
                 ("q", chunk),
             ])
+            .timeout(timeout)
             .send()
             .and_then(reqwest::blocking::Response::error_for_status)
             .map_err(|error| {
-                CommandError::new(
-                    "translation_unavailable",
-                    format!("Translation is unavailable: {error}"),
-                )
-            })?
-            .json()
-            .map_err(|error| {
-                CommandError::new(
-                    "translation_response",
-                    format!("Google returned an incompatible translation response: {error}"),
-                )
+                if error.is_timeout() {
+                    CommandError::new(
+                        "translation_timeout",
+                        "Translation timed out. Check the network or translation proxy and retry.",
+                    )
+                } else {
+                    provider_unavailable()
+                }
             })?;
+        let value: serde_json::Value = response.json().map_err(|_| incompatible_response())?;
         let rows = value
             .get(0)
             .and_then(serde_json::Value::as_array)
-            .ok_or_else(|| {
-                CommandError::new(
-                    "translation_response",
-                    "Google returned an incompatible translation response.",
-                )
-            })?;
+            .ok_or_else(incompatible_response)?;
+        let chunk_start = translated.len();
         for row in rows {
             if let Some(piece) = row.get(0).and_then(serde_json::Value::as_str) {
                 translated.push_str(piece);
             }
+        }
+        if translated.len() == chunk_start {
+            return Err(incompatible_response());
         }
         detected = detected.or_else(|| {
             value
@@ -328,5 +399,49 @@ mod tests {
             result,
             "# <Hello >*<world>* [<site>](https://example.com)\n- <next item>\n"
         );
+    }
+
+    #[test]
+    fn proxy_validation_rejects_credentials_routes_and_oversized_values() {
+        assert!(validate_proxy("").is_err());
+        assert!(validate_proxy("socks5://127.0.0.1:1080").is_err());
+        assert!(validate_proxy("http://user:secret@127.0.0.1:7890").is_err());
+        assert!(validate_proxy("http://127.0.0.1:7890/path").is_err());
+        assert!(validate_proxy("http://127.0.0.1:7890/").is_err());
+        assert!(validate_proxy(&format!("http://{}", "a".repeat(MAX_PROXY_BYTES))).is_err());
+        assert!(validate_proxy("http://127.0.0.1:7890").is_ok());
+        assert!(validate_proxy("https://proxy.example:443").is_ok());
+        assert!(translation_client("").is_ok());
+        assert!(translation_client("http://127.0.0.1:7890").is_ok());
+    }
+
+    #[test]
+    fn deadline_and_provider_errors_are_sanitized() {
+        assert_eq!(
+            remaining(Instant::now() - Duration::from_millis(1))
+                .unwrap_err()
+                .code,
+            "translation_timeout"
+        );
+        let error = provider_unavailable();
+        assert_eq!(error.code, "translation_unavailable");
+        assert!(!error.message.contains("translate.googleapis.com"));
+        assert!(!error.message.contains("q="));
+        assert_eq!(incompatible_response().code, "translation_response");
+        assert!(!incompatible_response().message.contains("Google"));
+    }
+
+    #[test]
+    fn later_markdown_failure_returns_no_partial_result() {
+        let mut calls = 0;
+        let result = map_markdown_prose("first\nsecond\n", |text| {
+            calls += 1;
+            if calls == 2 {
+                Err(provider_unavailable())
+            } else {
+                Ok(text.to_uppercase())
+            }
+        });
+        assert_eq!(result.unwrap_err().code, "translation_unavailable");
     }
 }

@@ -1,7 +1,17 @@
 import { invoke } from "@tauri-apps/api/core";
 
+export type RuntimeErrorCode =
+  | "runtime_not_found"
+  | "runtime_unavailable"
+  | "node_too_old"
+  | "incompatible_cli"
+  | "command_failed"
+  | "invalid_output"
+  | "internal";
+
 export interface RuntimeStatus {
   ready: boolean;
+  errorCode: RuntimeErrorCode | null;
   version: string | null;
   nodeVersion: string | null;
   message: string | null;
@@ -87,11 +97,13 @@ export const translatePreview = (
   skill: string,
   path: string,
   targetLanguage: string,
+  translationProxy: string,
 ) =>
   invoke<TranslationResult>("translate_preview", {
     skill,
     path,
     targetLanguage,
+    translationProxy,
   });
 
 interface ErrorPayload {

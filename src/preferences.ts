@@ -98,6 +98,7 @@ export const agentOptions = [
 export interface Preferences {
   theme: Theme;
   targetLanguage: TargetLanguage;
+  translationProxy: string;
   agents: string[];
   copy: boolean;
 }
@@ -120,6 +121,7 @@ export function loadPreferences(locale = navigator.language): Preferences {
   const defaults: Preferences = {
     theme: "system",
     targetLanguage: defaultLanguage(locale),
+    translationProxy: "",
     agents: [],
     copy: false,
   };
@@ -134,6 +136,11 @@ export function loadPreferences(locale = navigator.language): Preferences {
       targetLanguage: languages.some(([code]) => code === value.targetLanguage)
         ? (value.targetLanguage as TargetLanguage)
         : defaults.targetLanguage,
+      translationProxy:
+        typeof value.translationProxy === "string" &&
+        validateTranslationProxy(value.translationProxy) === null
+          ? value.translationProxy
+          : "",
       agents: Array.isArray(value.agents)
         ? value.agents.filter(
             (agent): agent is string =>
@@ -145,6 +152,28 @@ export function loadPreferences(locale = navigator.language): Preferences {
     };
   } catch {
     return defaults;
+  }
+}
+
+export function validateTranslationProxy(value: string): string | null {
+  if (!value) return null;
+  if (new TextEncoder().encode(value).length > 2_048) return "too-long";
+  try {
+    const url = new URL(value);
+    const authority = value.split("://", 2)[1];
+    return (url.protocol === "http:" || url.protocol === "https:") &&
+      Boolean(url.host) &&
+      Boolean(authority) &&
+      !/[/?#]/.test(authority) &&
+      !url.username &&
+      !url.password &&
+      url.pathname === "/" &&
+      !url.search &&
+      !url.hash
+      ? null
+      : "invalid";
+  } catch {
+    return "invalid";
   }
 }
 
