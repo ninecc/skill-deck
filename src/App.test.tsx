@@ -84,6 +84,16 @@ describe("CLI-backed workspace", () => {
         .disabled,
     ).toBe(true);
     expect(container.querySelector('[aria-label="Settings"]')).not.toBeNull();
+    expect(
+      container
+        .querySelector('[aria-label="Refresh Inventory"] .icon')
+        ?.getAttribute("data-icon"),
+    ).toBe("refresh");
+    expect(
+      container
+        .querySelector('[aria-label="Update all"] .icon')
+        ?.getAttribute("data-icon"),
+    ).toBe("update-all");
   });
 
   it("distinguishes empty Inventory from filter misses on visible fields", async () => {
@@ -321,15 +331,21 @@ describe("CLI-backed workspace", () => {
         container.querySelector('[aria-label="Settings"]') as HTMLButtonElement
       ).click(),
     );
+    const translationSection = Array.from(
+      container.querySelectorAll(".settings-nav button"),
+    ).find(
+      (button) => button.textContent === "Translation",
+    ) as HTMLButtonElement;
+    await act(async () => translationSection.click());
+    expect(container.querySelector(".dialog-footer")?.textContent).toContain(
+      "apply only when you choose Apply proxy",
+    );
     const proxyLabel = Array.from(container.querySelectorAll("label")).find(
       (label) => label.textContent?.includes("Translation proxy"),
     ) as HTMLLabelElement;
     const input = proxyLabel.querySelector("input") as HTMLInputElement;
     expect(input.value).toBe("");
     expect(input.hasAttribute("placeholder")).toBe(false);
-    const apply = Array.from(container.querySelectorAll("button")).find(
-      (button) => button.textContent === "Apply proxy",
-    ) as HTMLButtonElement;
     const setInput = (value: string) => {
       Object.getOwnPropertyDescriptor(
         HTMLInputElement.prototype,
@@ -340,7 +356,13 @@ describe("CLI-backed workspace", () => {
     await act(async () => {
       setInput("http://user:secret@proxy.example");
     });
-    await act(async () => apply.click());
+    await act(async () =>
+      (
+        Array.from(container.querySelectorAll("button")).find(
+          (button) => button.textContent === "Apply proxy",
+        ) as HTMLButtonElement
+      ).click(),
+    );
     expect(localStorage.getItem("skill-deck-preferences")).not.toContain(
       "secret",
     );
@@ -350,8 +372,71 @@ describe("CLI-backed workspace", () => {
     expect(localStorage.getItem("skill-deck-preferences")).not.toContain(
       "7890",
     );
-    await act(async () => apply.click());
+    await act(async () =>
+      (
+        Array.from(container.querySelectorAll(".settings-nav button")).find(
+          (button) => button.textContent === "General",
+        ) as HTMLButtonElement
+      ).click(),
+    );
+    await act(async () => translationSection.click());
+    expect(
+      (
+        Array.from(container.querySelectorAll("label"))
+          .find((label) => label.textContent?.includes("Translation proxy"))
+          ?.querySelector("input") as HTMLInputElement
+      ).value,
+    ).toBe("http://127.0.0.1:7890");
+    await act(async () =>
+      (
+        Array.from(container.querySelectorAll("button")).find(
+          (button) => button.textContent === "Apply proxy",
+        ) as HTMLButtonElement
+      ).click(),
+    );
     expect(localStorage.getItem("skill-deck-preferences")).toContain("7890");
+  });
+
+  it("keeps non-proxy Settings changes immediate across sections", async () => {
+    invokeMock.mockImplementation(() => new Promise(() => undefined));
+    await act(async () => root.render(<App />));
+    await act(async () =>
+      (
+        container.querySelector('[aria-label="Settings"]') as HTMLButtonElement
+      ).click(),
+    );
+
+    const navButtons = () =>
+      Array.from(container.querySelectorAll(".settings-nav button"));
+    await act(async () =>
+      (
+        navButtons().find(
+          (button) => button.textContent === "Appearance",
+        ) as HTMLButtonElement
+      ).click(),
+    );
+    const sand = Array.from(container.querySelectorAll(".theme-tile"))
+      .find((tile) => tile.textContent === "Sand")
+      ?.querySelector("input") as HTMLInputElement;
+    await act(async () => sand.click());
+    expect(localStorage.getItem("skill-deck-preferences")).toContain(
+      '"theme":"sand"',
+    );
+
+    await act(async () =>
+      (
+        navButtons().find(
+          (button) => button.textContent === "Installation",
+        ) as HTMLButtonElement
+      ).click(),
+    );
+    const explicit = Array.from(container.querySelectorAll("button")).find(
+      (button) => button.textContent === "Choose explicit targets",
+    ) as HTMLButtonElement;
+    await act(async () => explicit.click());
+    expect(localStorage.getItem("skill-deck-preferences")).toContain(
+      '"agents":["codex"]',
+    );
   });
 
   it("blocks the workspace when the runtime probe fails", async () => {
@@ -452,6 +537,20 @@ describe("CLI-backed workspace", () => {
     await act(async () =>
       (container.querySelector(".path-button") as HTMLButtonElement).click(),
     );
+    const pathButton = container.querySelector(
+      ".path-button",
+    ) as HTMLButtonElement;
+    const tree = container.querySelector(".file-tree") as HTMLElement;
+    const ariaTree = tree.querySelector('[role="tree"]') as HTMLElement;
+    expect(ariaTree.previousElementSibling?.className).toBe("file-tree-header");
+    expect(ariaTree.firstElementChild?.getAttribute("aria-level")).toBe("1");
+    await act(async () =>
+      tree.dispatchEvent(
+        new KeyboardEvent("keydown", { key: "Escape", bubbles: true }),
+      ),
+    );
+    expect(document.activeElement).toBe(pathButton);
+    await act(async () => pathButton.click());
     const unsupported = container.querySelector(
       '[data-path="archive.zip"]',
     ) as HTMLButtonElement;

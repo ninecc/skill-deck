@@ -1,7 +1,10 @@
-type IconName =
+export type IconName =
   | "search"
+  | "install"
   | "settings"
   | "refresh"
+  | "update-all"
+  | "update-skill"
   | "folder"
   | "file"
   | "translate"
@@ -17,6 +20,13 @@ const paths: Record<IconName, React.ReactNode> = {
       <path d="m20 20-4-4" />
     </>
   ),
+  install: (
+    <>
+      <path d="M12 3v11m-4-4 4 4 4-4" />
+      <path d="M5 18v3h14v-3M4 7h4" />
+      <path d="M6 5v4" />
+    </>
+  ),
   settings: (
     <>
       <circle cx="12" cy="12" r="3" />
@@ -27,6 +37,18 @@ const paths: Record<IconName, React.ReactNode> = {
     <>
       <path d="M20 7v5h-5" />
       <path d="M19 12a7 7 0 1 0-2 5" />
+    </>
+  ),
+  "update-all": (
+    <>
+      <path d="M5 5h11v11H5zM8 2h11v11" />
+      <path d="M10.5 9.5v4m-2-2 2 2 2-2" />
+    </>
+  ),
+  "update-skill": (
+    <>
+      <path d="M5 3h10l4 4v14H5zM15 3v5h4" />
+      <path d="M12 10v6m-2-2 2 2 2-2" />
     </>
   ),
   folder: <path d="M3 6h7l2 2h9v11H3z" />,
@@ -57,6 +79,7 @@ export function Icon({ name }: { name: IconName }) {
   return (
     <svg
       className="icon"
+      data-icon={name}
       viewBox="0 0 24 24"
       fill="none"
       stroke="currentColor"

@@ -39,7 +39,7 @@ import {
   type UnavailableReason,
 } from "./commands";
 import { effectiveLocale, catalogs, type Messages } from "./i18n";
-import { Icon } from "./icons";
+import { Icon, type IconName } from "./icons";
 import ModalShell from "./ModalShell";
 import {
   installNativeMenu,
@@ -81,7 +81,7 @@ export default function App() {
       navigator.languages.length ? navigator.languages : [navigator.language],
   );
   const locale = effectiveLocale(preferences.uiLocale, systemLanguages);
-  const copy = catalogs[locale];
+  const copy = catalogs[locale] ?? catalogs.en;
   const [runtime, setRuntime] = useState<RuntimeStatus | null>(null);
   const [inventory, setInventory] = useState<InstalledSkill[]>([]);
   const [selected, setSelected] = useState<string | null>(null);
@@ -596,6 +596,9 @@ export default function App() {
         skill.path.toLowerCase().includes(query),
     );
   }, [filter, inventory]);
+  const selectedSkill = selected
+    ? (inventory.find((skill) => skill.name === selected) ?? null)
+    : null;
   const translationKey =
     selected && file
       ? `${selected}\n${file.path}\n${preferences.targetLanguage}\n${preferences.translationProxy}`
@@ -643,7 +646,7 @@ export default function App() {
 
   const commandButton = (
     id: CommandId,
-    icon: "search" | "refresh" | "settings" | "folder" | "trash",
+    icon: IconName,
     label: string,
     className = "",
     iconOnly = id === "settings",
@@ -679,13 +682,24 @@ export default function App() {
     >
       <header className="app-bar">
         <div className="brand">
-          <span className="brand-mark">S</span>
+          <span className="brand-mark" aria-hidden="true">
+            <i />
+            <i />
+            <i />
+          </span>
           <strong>Skill Deck</strong>
+          <span className="brand-count">{inventory.length}</span>
         </div>
         <div className="bar-actions">
-          {commandButton("find-install", "search", copy.findInstall, "primary")}
+          {commandButton(
+            "find-install",
+            "install",
+            copy.findInstall,
+            "primary",
+          )}
           {commandButton("refresh-inventory", "refresh", copy.refreshInventory)}
-          {commandButton("update-all", "refresh", copy.updateAll, "button")}
+          <span className="toolbar-separator" aria-hidden="true" />
+          {commandButton("update-all", "update-all", copy.updateAll, "button")}
           {commandButton("settings", "settings", copy.settings, "icon-button")}
         </div>
       </header>
@@ -789,11 +803,10 @@ export default function App() {
                 }}
               >
                 <strong>{skill.name}</strong>
-                <span>
-                  {skill.source
-                    ? `${skill.source} · ${skill.path}`
-                    : skill.path}
-                </span>
+                {skill.source && (
+                  <span title={skill.source}>{skill.source}</span>
+                )}
+                <code title={skill.path}>{skill.path}</code>
               </button>
             ))}
           </div>
@@ -819,101 +832,156 @@ export default function App() {
                   <Icon name="chevron" />
                   {copy.backToInventory}
                 </button>
-                <div className="path-control">
-                  <button
-                    ref={pathRef}
-                    type="button"
-                    className="path-button"
-                    aria-haspopup="tree"
-                    aria-expanded={transient === "tree"}
-                    onClick={() =>
-                      setTransient((value) =>
-                        value === "tree" ? null : "tree",
-                      )
-                    }
-                  >
-                    <span>{file?.path ?? copy.path}</span>
-                    <Icon name="chevron" />
-                  </button>
-                  {transient === "tree" && (
-                    <div
-                      className="file-tree"
-                      role="tree"
-                      aria-label={copy.skillFiles}
-                      onKeyDown={(event) =>
-                        moveTreeFocus(event, () => {
-                          setTransient(null);
-                          pathRef.current?.focus();
-                        })
-                      }
-                    >
-                      {tree.map((entry) =>
-                        entry.directory ? (
-                          <div
-                            role="treeitem"
-                            aria-level={entry.level}
-                            aria-label={entry.path}
-                            className="tree-directory"
-                            style={{
-                              paddingInlineStart: `${10 + (entry.level - 1) * 18}px`,
-                            }}
-                            key={entry.path}
-                          >
-                            <Icon name="folder" />
-                            <span>{entry.name}</span>
-                          </div>
-                        ) : (
+                <div className="skill-header">
+                  <div className="skill-identity">
+                    <h1 title={selectedSkill?.name}>{selectedSkill?.name}</h1>
+                    <dl className="skill-provenance">
+                      {selectedSkill?.source && (
+                        <div className="provenance-source">
+                          <dt>{copy.skillSource}</dt>
+                          <dd title={selectedSkill.source}>
+                            {selectedSkill.source}
+                          </dd>
+                        </div>
+                      )}
+                      <div className="provenance-path">
+                        <dt>{copy.installPath}</dt>
+                        <dd title={selectedSkill?.path}>
+                          {selectedSkill?.path}
+                        </dd>
+                      </div>
+                      <div className="path-control">
+                        <dt className="sr-only">{copy.skillFiles}</dt>
+                        <dd>
                           <button
+                            ref={pathRef}
                             type="button"
-                            role="treeitem"
-                            aria-level={entry.level}
-                            aria-label={entry.path}
-                            data-path={entry.path}
-                            key={entry.path}
-                            aria-current={
-                              file?.path === entry.path ? "true" : undefined
+                            className="path-button"
+                            aria-haspopup="tree"
+                            aria-expanded={transient === "tree"}
+                            onClick={() =>
+                              setTransient((value) =>
+                                value === "tree" ? null : "tree",
+                              )
                             }
-                            style={{
-                              paddingInlineStart: `${10 + (entry.level - 1) * 18}px`,
-                            }}
-                            onClick={() => chooseFile(entry)}
                           >
                             <Icon name="file" />
-                            <span>{entry.name}</span>
+                            <span>{file?.path ?? copy.path}</span>
+                            <Icon name="chevron" />
                           </button>
-                        ),
+                          {transient === "tree" && (
+                            <div
+                              className="file-tree"
+                              onKeyDown={(event) =>
+                                moveTreeFocus(event, () => {
+                                  setTransient(null);
+                                  pathRef.current?.focus();
+                                })
+                              }
+                            >
+                              <div className="file-tree-header">
+                                <div>
+                                  <strong>{copy.skillFiles}</strong>
+                                  <span>
+                                    {
+                                      tree.filter((entry) => !entry.directory)
+                                        .length
+                                    }{" "}
+                                    {copy.fileCount}
+                                  </span>
+                                </div>
+                                <code title={selectedSkill?.name}>
+                                  {selectedSkill?.name}
+                                </code>
+                              </div>
+                              <div role="tree" aria-label={copy.skillFiles}>
+                                {tree.map((entry) =>
+                                  entry.directory ? (
+                                    <div
+                                      role="treeitem"
+                                      aria-level={entry.level}
+                                      aria-label={entry.path}
+                                      className="tree-directory"
+                                      style={{
+                                        paddingInlineStart: `${10 + (entry.level - 1) * 18}px`,
+                                      }}
+                                      key={entry.path}
+                                    >
+                                      <Icon name="chevron" />
+                                      <Icon name="folder" />
+                                      <span>{entry.name}</span>
+                                    </div>
+                                  ) : (
+                                    <button
+                                      type="button"
+                                      role="treeitem"
+                                      aria-level={entry.level}
+                                      aria-label={entry.path}
+                                      data-path={entry.path}
+                                      key={entry.path}
+                                      aria-current={
+                                        file?.path === entry.path
+                                          ? "true"
+                                          : undefined
+                                      }
+                                      style={{
+                                        paddingInlineStart: `${10 + (entry.level - 1) * 18}px`,
+                                      }}
+                                      onClick={() => chooseFile(entry)}
+                                    >
+                                      <Icon name="file" />
+                                      <span>{entry.name}</span>
+                                    </button>
+                                  ),
+                                )}
+                              </div>
+                            </div>
+                          )}
+                        </dd>
+                      </div>
+                    </dl>
+                  </div>
+                  <div className="skill-command-groups">
+                    <div className="preview-actions content-actions">
+                      {file?.translatable && (
+                        <>
+                          <span className="egress">{copy.egress}</span>
+                          <button
+                            type="button"
+                            aria-pressed={translationOn}
+                            onClick={() => dispatch("translate-skill")}
+                          >
+                            <Icon name="translate" />
+                            {translationOn
+                              ? copy.hideTranslation
+                              : copy.translate}
+                          </button>
+                        </>
+                      )}
+                      {commandButton(
+                        "reveal-skill",
+                        "folder",
+                        file ? copy.revealFile : copy.revealRoot,
+                        "icon-button",
+                        true,
                       )}
                     </div>
-                  )}
-                </div>
-                <div className="preview-actions">
-                  {file?.translatable && (
-                    <>
-                      <span className="egress">{copy.egress}</span>
-                      <button
-                        type="button"
-                        aria-pressed={translationOn}
-                        onClick={() => dispatch("translate-skill")}
-                      >
-                        <Icon name="translate" />
-                        {translationOn ? copy.hideTranslation : copy.translate}
-                      </button>
-                    </>
-                  )}
-                  {commandButton(
-                    "reveal-skill",
-                    "folder",
-                    file ? copy.revealFile : copy.revealRoot,
-                    "icon-button",
-                    true,
-                  )}
-                  {commandButton(
-                    "remove-skill",
-                    "trash",
-                    copy.remove,
-                    "danger",
-                  )}
-                  {commandButton("update-skill", "refresh", copy.update)}
+                    <div className="preview-actions lifecycle-actions">
+                      {commandButton(
+                        "update-skill",
+                        "update-skill",
+                        copy.update,
+                        "update-emphasis",
+                      )}
+                      {commandButton(
+                        "remove-skill",
+                        "trash",
+                        copy.remove,
+                        "danger quiet-danger icon-button",
+                        true,
+                      )}
+                    </div>
+                  </div>
                 </div>
               </div>
               {translationOn && file?.translatable && (
