@@ -1,0 +1,4 @@
+{"file": ".trellis/spec/frontend/index.md", "reason": "Frontend pre-development checklist and layer routing"}
+{"file": ".trellis/spec/frontend/state-management.md", "reason": "Preserve App command and preference state ownership during UI refactor"}
+{"file": ".trellis/spec/frontend/component-guidelines.md", "reason": "React component, accessibility, focus, and presentation boundaries"}
+{"file": ".trellis/tasks/08-13-skill-deck-desktop-redesign/research/ui-audit.md", "reason": "Current UI behavior evidence, defects, and regression risks"}

@@ -9,8 +9,9 @@ a select so keyboard behavior exists without extra code.
 - Every icon-only or brand link needs an accessible name.
 - Decorative marks use `aria-hidden`.
 - Visible sections connect headings with `aria-labelledby` where needed.
-- Preserve `:focus-visible`, reduced-motion behavior, readable contrast, and a
-  320px minimum layout in `styles.css`.
+- Preserve `:focus-visible`, reduced-motion behavior, readable contrast, and
+  the 720×520 minimum desktop-window layout in `styles.css`. Widths below 720px
+  are not a mobile-product target.
 - A disabled or unavailable domain action must expose the reason in text, not
   only color.
 - Modal dialogs are mutually exclusive, trap focus, close on Escape when safe,
@@ -41,12 +42,23 @@ not duplicate behavior or invent their own disabled state. Read-only Preview
 commands remain available during mutations unless they conflict with the active
 modal or document state.
 
-The current 820px breakpoint and Toolbar/Content/Status three-row composition
-are regression surfaces, not permanent visual requirements. An Approved Visual
-Direction may replace them. At the minimum supported window size, core workflows
-must remain operable, status feedback visible, and content correctly scrollable.
-Narrow-detail navigation supports `Alt+Left` and macOS `Meta+[` without
-resize-driven React state.
+The approved shared desktop composition is a Toolbar/Content/Status grid with a
+two-pane Inventory/Preview content row at both 1180×800 and 720×520. The narrow
+desktop adaptation may hide secondary command labels and provenance, but must
+not replace the two panes with mobile navigation. Core workflows must remain
+operable, status feedback visible, and content correctly scrollable. Keep each
+grid surface pinned to the declared application column (`grid-column: 1` or an
+equivalent explicit area); colocated runtime and workspace surfaces without an
+explicit column create implicit side-by-side columns and can make the app fill
+only half the window.
+
+Transient controls anchored inside provenance must escape the toolbar without
+being clipped and render above Preview content. Scope flex/grid selectors to
+direct provenance children: a broad selector such as `.skill-provenance div`
+also matches descendants inside the file-tree popover and can flatten its
+header and rows horizontally. The file popover remains a vertical tree with a
+separate title/count/root header, full path in accessible metadata, and focus
+restoration to the file picker on Escape.
 
 ## Visual Authority
 
@@ -82,3 +94,13 @@ manifest for visual implementation or visual review. When historical material
 is needed for a non-visual contract, include only the necessary artifact and
 make the manifest `reason` identify the exact behavioral, accessibility, or
 counterexample evidence being used.
+
+When implementing an Approved Visual Direction, treat its task-local visual
+artifact as an executable comparison target, not merely inspiration. Before
+reporting completion, compare the built desktop App—not only a browser preview—
+at every approved reference size for surface dimensions, pane structure,
+typography/measure, command hierarchy, selected/focus states, popover stacking,
+dialog composition, and loading/empty/error states. Automated behavior tests
+do not constitute visual acceptance. Record any unavailable native-platform
+smoke separately instead of treating shared WebView coverage as proof of native
+menu/window behavior.

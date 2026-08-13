@@ -1,0 +1,4 @@
+{"file": ".trellis/spec/frontend/quality-guidelines.md", "reason": "Frontend test, accessibility, and quality expectations"}
+{"file": ".trellis/spec/frontend/index.md", "reason": "Frontend quality checklist and required verification"}
+{"file": ".trellis/spec/frontend/type-safety.md", "reason": "Type safety review for component and preference refactors"}
+{"file": ".trellis/tasks/08-13-skill-deck-desktop-redesign/research/ui-audit.md", "reason": "Regression checklist for preserved commands, states, focus, and platform behavior"}
