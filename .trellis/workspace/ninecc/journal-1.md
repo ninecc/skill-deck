@@ -264,3 +264,25 @@ Removed Prototype G and current theme/component styling as default future visual
 ### Status
 
 [OK] **Completed**
+
+
+## Session 13: Complete Skill Deck desktop redesign
+
+**Date**: 2026-08-13
+**Task**: Complete Skill Deck desktop redesign
+**Branch**: `main`
+
+### Summary
+
+Implemented and visually revalidated approved Direction B across the shared React/Tauri desktop UI; preserved command, preference, lifecycle, keyboard, and native-platform contracts; documented reusable visual validation and desktop layout rules.
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `a1e5289` | (see git log) |
+| `420fe2b` | (see git log) |
+
+### Status
+
+[OK] **Completed**
