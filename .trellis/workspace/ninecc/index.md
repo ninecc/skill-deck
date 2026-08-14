@@ -8,8 +8,8 @@
 
 <!-- @@@auto:current-status -->
 - **Active File**: `journal-1.md`
-- **Total Sessions**: 13
-- **Last Active**: 2026-08-13
+- **Total Sessions**: 14
+- **Last Active**: 2026-08-14
 <!-- @@@/auto:current-status -->
 
 ---
@@ -19,7 +19,7 @@
 <!-- @@@auto:active-documents -->
 | File | Lines | Status |
 |------|-------|--------|
-| `journal-1.md` | ~288 | Active |
+| `journal-1.md` | ~309 | Active |
 <!-- @@@/auto:active-documents -->
 
 ---
@@ -29,6 +29,7 @@
 <!-- @@@auto:session-history -->
 | # | Date | Title | Commits | Branch |
 |---|------|-------|---------|--------|
+| 14 | 2026-08-14 | Skill Deck Pencil full-flow design | `fac8dc9` | `main` |
 | 13 | 2026-08-13 | Complete Skill Deck desktop redesign | `a1e5289`, `420fe2b` | `main` |
 | 12 | 2026-08-13 | Retire historical UI visual authority | `a51a725` | `main` |
 | 11 | 2026-08-12 | Tauri desktop UI UX refactor | `50b86cb`, `a7c9be4` | `main` |
