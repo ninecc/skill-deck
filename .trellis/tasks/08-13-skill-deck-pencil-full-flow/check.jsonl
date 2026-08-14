@@ -1,0 +1,4 @@
+{"file": ".trellis/tasks/08-13-skill-deck-pencil-full-flow/prd.md", "reason": "Acceptance criteria and explicit design-only scope"}
+{"file": ".trellis/tasks/08-13-skill-deck-pencil-full-flow/design.md", "reason": "Canvas structure, token/component contracts, and validation strategy"}
+{"file": ".trellis/tasks/archive/2026-08/08-13-skill-deck-desktop-redesign/prd.md", "reason": "Cross-check every unique approved scene and viewport contract"}
+{"file": ".trellis/tasks/archive/2026-08/08-13-skill-deck-desktop-redesign/research/ui-audit.md", "reason": "Review focus, state grammar, command hierarchy, and long-content risks"}

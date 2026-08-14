@@ -1,0 +1,4 @@
+{"file": ".trellis/tasks/archive/2026-08/08-13-skill-deck-desktop-redesign/prd.md", "reason": "Approved Direction B product, viewport, state, and visual contracts"}
+{"file": ".trellis/tasks/archive/2026-08/08-13-skill-deck-desktop-redesign/design.md", "reason": "Approved two-pane architecture, token system, file popover, dialogs, accessibility, and platform boundaries"}
+{"file": ".trellis/tasks/archive/2026-08/08-13-skill-deck-desktop-redesign/research/ui-audit.md", "reason": "Evidence-backed full state inventory and visual/interaction defects the design must address"}
+{"file": ".trellis/spec/frontend/component-guidelines.md", "reason": "Accessibility, reusable component, focus, and interaction contracts relevant to design fidelity"}
