@@ -27,6 +27,16 @@ divider-separated translation composition.
 - Replace the visible path control with the Pencil icon-only trigger using
   `Open file tree` / `打开文件树` as `aria-label` and `Browse files` / `浏览文件`
   as tooltip.
+- Recompose wide Skill identity into two semantic rows: Skill name followed by
+  source on the title row, then the file-tree trigger followed by install path
+  on the location row. The leading folder button means “browse this path”; the
+  Skill name has truncation priority over source and the path owns the remaining
+  second-row width. At 720×520, collapse the header to one row: Skill name plus
+  the icon-only file-tree trigger on the left and icon-only Translate, Reveal,
+  Update and Remove controls on the right. Hide source, visible install path and
+  egress copy; retain the full path only in DOM/title metadata. Preserve all
+  tooltips/accessibility names and use `folder-open` for Reveal so it is distinct
+  from the file-tree `folder` icon.
 - Preserve safe Markdown/plain-text Preview and remote-resource blocking.
 - Preserve translation loading, success, failure, retry and compact-pane
   operability with localized pane labels and a stable central divider.
@@ -45,6 +55,11 @@ divider-separated translation composition.
 
 - [ ] File popover matches Pencil in Dark and remains usable in all themes and
       both approved window sizes.
+- [ ] Wide provenance no longer makes source, path and file trigger compete in
+      one row; long source/path values truncate in the approved priority order.
+- [ ] Compact header is a balanced single row with name + file-tree trigger and
+      four distinct core actions; no visible source/path/egress, floating folder
+      icon, duplicate folder glyph or header overflow remains.
 - [ ] Keyboard tree navigation, dismissal and trigger-focus restoration work.
 - [ ] File activation closes the popover, loads Preview and restores trigger
       focus.

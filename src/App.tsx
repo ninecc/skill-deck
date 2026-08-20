@@ -86,6 +86,10 @@ export default function App() {
   const [inventory, setInventory] = useState<InstalledSkill[]>([]);
   const [selected, setSelected] = useState<string | null>(null);
   const [tree, setTree] = useState<FileEntry[]>([]);
+  const [expandedDirectories, setExpandedDirectories] = useState<Set<string>>(
+    () => new Set(),
+  );
+  const [treeFocusPath, setTreeFocusPath] = useState<string | null>(null);
   const [file, setFile] = useState<FileContent | null>(null);
   const [previewLoading, setPreviewLoading] = useState(false);
   const [previewError, setPreviewError] = useState<string | null>(null);
@@ -164,6 +168,8 @@ export default function App() {
   async function loadPreview(name: string, preferredPath?: string | null) {
     const request = ++previewRequest.current;
     setTree([]);
+    setExpandedDirectories(new Set());
+    setTreeFocusPath(null);
     setFile(null);
     setPreviewError(null);
     setPreviewLoading(true);
@@ -197,6 +203,13 @@ export default function App() {
       } else if (candidate) content = await readPreview(name, candidate.path);
       if (previewRequest.current === request) {
         setTree(entries);
+        setExpandedDirectories(
+          new Set(
+            entries
+              .filter((entry) => entry.directory)
+              .map((entry) => normalizeDirectoryPath(entry.path)),
+          ),
+        );
         setFile(content);
       }
     } catch (value: unknown) {
@@ -575,16 +588,31 @@ export default function App() {
       )
         return;
       setTransient(null);
+      if (
+        !(target instanceof Element) ||
+        !target.closest("button, input, select, a, [tabindex]")
+      )
+        requestAnimationFrame(() => pathRef.current?.focus());
     };
     document.addEventListener("mousedown", closeOutside);
     if (transient === "tree")
-      requestAnimationFrame(() =>
-        document
-          .querySelector<HTMLElement>('.file-tree button[role="treeitem"]')
-          ?.focus(),
-      );
+      requestAnimationFrame(() => {
+        const treeElement = document.querySelector<HTMLElement>(".file-tree");
+        const selectedPath = file?.path;
+        const selectedItem = selectedPath
+          ? Array.from(
+              treeElement?.querySelectorAll<HTMLElement>(
+                'button[role="treeitem"]',
+              ) ?? [],
+            ).find((item) => item.dataset.path === selectedPath)
+          : null;
+        (
+          selectedItem ??
+          treeElement?.querySelector<HTMLElement>('button[role="treeitem"]')
+        )?.focus();
+      });
     return () => document.removeEventListener("mousedown", closeOutside);
-  }, [transient]);
+  }, [file?.path, transient]);
 
   const visible = useMemo(() => {
     const query = filter.trim().toLowerCase();
@@ -605,6 +633,42 @@ export default function App() {
       : null;
   const currentTranslation =
     translationState?.key === translationKey ? translationState : null;
+  const visibleTree = useMemo(
+    () => visibleTreeEntries(tree, expandedDirectories),
+    [expandedDirectories, tree],
+  );
+  const treeTabPath =
+    treeFocusPath && visibleTree.some((entry) => entry.path === treeFocusPath)
+      ? treeFocusPath
+      : visibleTree.some((entry) => entry.path === file?.path)
+        ? file?.path
+        : visibleTree[0]?.path;
+
+  function openFileTree() {
+    if (transient === "tree") {
+      setTransient(null);
+      return;
+    }
+    const selectedPath = file?.path;
+    if (selectedPath) {
+      const ancestors = directoryAncestors(tree, selectedPath);
+      if (ancestors.length)
+        setExpandedDirectories(
+          (current) => new Set([...current, ...ancestors]),
+        );
+    }
+    setTransient("tree");
+  }
+
+  function setDirectoryExpanded(path: string, expanded: boolean) {
+    const normalized = normalizeDirectoryPath(path);
+    setExpandedDirectories((current) => {
+      const next = new Set(current);
+      if (expanded) next.add(normalized);
+      else next.delete(normalized);
+      return next;
+    });
+  }
   const runtimeFailure = (() => {
     if (runtimeError) return [runtimeError, null] as const;
     if (!runtime || runtime.ready) return null;
@@ -667,6 +731,7 @@ export default function App() {
           className={className}
           disabled={!state.enabled}
           aria-label={label}
+          title={label}
           onClick={() => dispatch(id)}
         >
           <Icon name={icon} />
@@ -834,112 +899,150 @@ export default function App() {
                 </button>
                 <div className="skill-header">
                   <div className="skill-identity">
-                    <h1 title={selectedSkill?.name}>{selectedSkill?.name}</h1>
-                    <dl className="skill-provenance">
+                    <div className="skill-title-row">
+                      <h1 title={selectedSkill?.name}>{selectedSkill?.name}</h1>
                       {selectedSkill?.source && (
-                        <div className="provenance-source">
-                          <dt>{copy.skillSource}</dt>
-                          <dd title={selectedSkill.source}>
-                            {selectedSkill.source}
-                          </dd>
-                        </div>
+                        <span
+                          className="skill-source"
+                          title={selectedSkill.source}
+                        >
+                          <span className="sr-only">{copy.skillSource}: </span>
+                          {selectedSkill.source}
+                        </span>
                       )}
-                      <div className="provenance-path">
-                        <dt>{copy.installPath}</dt>
-                        <dd title={selectedSkill?.path}>
-                          {selectedSkill?.path}
-                        </dd>
-                      </div>
+                    </div>
+                    <div className="skill-location-row">
                       <div className="path-control">
-                        <dt className="sr-only">{copy.skillFiles}</dt>
-                        <dd>
-                          <button
-                            ref={pathRef}
-                            type="button"
-                            className="path-button"
-                            aria-haspopup="tree"
-                            aria-expanded={transient === "tree"}
-                            onClick={() =>
-                              setTransient((value) =>
-                                value === "tree" ? null : "tree",
+                        <button
+                          ref={pathRef}
+                          type="button"
+                          className="path-button"
+                          aria-haspopup="tree"
+                          aria-expanded={transient === "tree"}
+                          aria-controls="skill-file-tree"
+                          aria-label={copy.openFileTree}
+                          title={copy.browseFiles}
+                          onClick={openFileTree}
+                        >
+                          <Icon name="folder" />
+                        </button>
+                        {transient === "tree" && (
+                          <div
+                            id="skill-file-tree"
+                            className="file-tree"
+                            onKeyDown={(event) =>
+                              moveTreeFocus(
+                                event,
+                                () => {
+                                  setTransient(null);
+                                  pathRef.current?.focus();
+                                },
+                                setDirectoryExpanded,
                               )
                             }
                           >
-                            <Icon name="file" />
-                            <span>{file?.path ?? copy.path}</span>
-                            <Icon name="chevron" />
-                          </button>
-                          {transient === "tree" && (
-                            <div
-                              className="file-tree"
-                              onKeyDown={(event) =>
-                                moveTreeFocus(event, () => {
-                                  setTransient(null);
-                                  pathRef.current?.focus();
-                                })
-                              }
-                            >
-                              <div className="file-tree-header">
-                                <div>
-                                  <strong>{copy.skillFiles}</strong>
-                                  <span>
-                                    {
-                                      tree.filter((entry) => !entry.directory)
-                                        .length
-                                    }{" "}
-                                    {copy.fileCount}
-                                  </span>
-                                </div>
-                                <code title={selectedSkill?.name}>
-                                  {selectedSkill?.name}
-                                </code>
+                            <div className="file-tree-header">
+                              <div>
+                                <strong>{copy.skillFiles}</strong>
+                                <span>
+                                  {
+                                    tree.filter((entry) => !entry.directory)
+                                      .length
+                                  }{" "}
+                                  {copy.fileCount}
+                                </span>
                               </div>
-                              <div role="tree" aria-label={copy.skillFiles}>
-                                {tree.map((entry) =>
-                                  entry.directory ? (
-                                    <div
-                                      role="treeitem"
-                                      aria-level={entry.level}
-                                      aria-label={entry.path}
-                                      className="tree-directory"
-                                      style={{
-                                        paddingInlineStart: `${10 + (entry.level - 1) * 18}px`,
-                                      }}
-                                      key={entry.path}
-                                    >
-                                      <Icon name="chevron" />
-                                      <Icon name="folder" />
-                                      <span>{entry.name}</span>
-                                    </div>
-                                  ) : (
-                                    <button
-                                      type="button"
-                                      role="treeitem"
-                                      aria-level={entry.level}
-                                      aria-label={entry.path}
-                                      data-path={entry.path}
-                                      key={entry.path}
-                                      aria-current={
-                                        file?.path === entry.path
-                                          ? "true"
-                                          : undefined
-                                      }
-                                      style={{
-                                        paddingInlineStart: `${10 + (entry.level - 1) * 18}px`,
-                                      }}
-                                      onClick={() => chooseFile(entry)}
-                                    >
-                                      <Icon name="file" />
-                                      <span>{entry.name}</span>
-                                    </button>
-                                  ),
-                                )}
-                              </div>
+                              <code title={selectedSkill?.name}>
+                                {selectedSkill?.name}
+                              </code>
                             </div>
-                          )}
-                        </dd>
+                            <div role="tree" aria-label={copy.skillFiles}>
+                              {visibleTree.map((entry) =>
+                                entry.directory ? (
+                                  <button
+                                    type="button"
+                                    role="treeitem"
+                                    aria-level={entry.level}
+                                    aria-label={entry.path}
+                                    aria-expanded={expandedDirectories.has(
+                                      normalizeDirectoryPath(entry.path),
+                                    )}
+                                    data-directory="true"
+                                    data-path={entry.path}
+                                    tabIndex={
+                                      treeTabPath === entry.path ? 0 : -1
+                                    }
+                                    className="tree-directory"
+                                    style={{
+                                      paddingInlineStart: `${10 + (entry.level - 1) * 18}px`,
+                                    }}
+                                    key={entry.path}
+                                    onClick={() =>
+                                      setDirectoryExpanded(
+                                        entry.path,
+                                        !expandedDirectories.has(
+                                          normalizeDirectoryPath(entry.path),
+                                        ),
+                                      )
+                                    }
+                                    onFocus={(event) =>
+                                      setTreeFocusPath(
+                                        event.currentTarget.dataset.path ??
+                                          null,
+                                      )
+                                    }
+                                  >
+                                    <Icon name="chevron" />
+                                    <Icon name="folder" />
+                                    <span>{entry.name}</span>
+                                  </button>
+                                ) : (
+                                  <button
+                                    type="button"
+                                    role="treeitem"
+                                    aria-level={entry.level}
+                                    aria-label={entry.path}
+                                    data-path={entry.path}
+                                    tabIndex={
+                                      treeTabPath === entry.path ? 0 : -1
+                                    }
+                                    key={entry.path}
+                                    aria-current={
+                                      file?.path === entry.path
+                                        ? "true"
+                                        : undefined
+                                    }
+                                    style={{
+                                      paddingInlineStart: `${10 + (entry.level - 1) * 18}px`,
+                                    }}
+                                    onClick={() => chooseFile(entry)}
+                                    onFocus={(event) =>
+                                      setTreeFocusPath(
+                                        event.currentTarget.dataset.path ??
+                                          null,
+                                      )
+                                    }
+                                  >
+                                    <Icon
+                                      name={
+                                        entry.viewer === "image"
+                                          ? "image"
+                                          : "file"
+                                      }
+                                    />
+                                    <span>{entry.name}</span>
+                                  </button>
+                                ),
+                              )}
+                            </div>
+                          </div>
+                        )}
                       </div>
-                    </dl>
+                      <span className="skill-path" title={selectedSkill?.path}>
+                        <span className="sr-only">{copy.installPath}: </span>
+                        {selectedSkill?.path}
+                      </span>
+                    </div>
                   </div>
                   <div className="skill-command-groups">
                     <div className="preview-actions content-actions">
@@ -948,19 +1051,32 @@ export default function App() {
                           <span className="egress">{copy.egress}</span>
                           <button
                             type="button"
+                            className="translation-toggle"
                             aria-pressed={translationOn}
+                            aria-label={
+                              translationOn
+                                ? copy.hideTranslation
+                                : copy.translate
+                            }
+                            title={
+                              translationOn
+                                ? copy.hideTranslation
+                                : copy.translate
+                            }
                             onClick={() => dispatch("translate-skill")}
                           >
                             <Icon name="translate" />
-                            {translationOn
-                              ? copy.hideTranslation
-                              : copy.translate}
+                            <span className="command-label">
+                              {translationOn
+                                ? copy.hideTranslation
+                                : copy.translate}
+                            </span>
                           </button>
                         </>
                       )}
                       {commandButton(
                         "reveal-skill",
-                        "folder",
+                        "folder-open",
                         file ? copy.revealFile : copy.revealRoot,
                         "icon-button",
                         true,
@@ -1317,6 +1433,7 @@ export default function App() {
     previewPath.current = entry.path;
     hideTranslation();
     setTransient(null);
+    requestAnimationFrame(() => pathRef.current?.focus());
     setPreviewError(null);
     if (entry.unsupportedReason) {
       setFile({
@@ -1362,6 +1479,7 @@ function moveListFocus(event: ReactKeyboardEvent<HTMLButtonElement>) {
 function moveTreeFocus(
   event: ReactKeyboardEvent<HTMLDivElement>,
   close: () => void,
+  setDirectoryExpanded: (path: string, expanded: boolean) => void,
 ) {
   if (event.key === "Escape") {
     event.preventDefault();
@@ -1374,14 +1492,74 @@ function moveTreeFocus(
     ),
   );
   const current = items.indexOf(document.activeElement as HTMLButtonElement);
+  if (current < 0) return;
   let next = current;
   if (event.key === "ArrowDown") next = Math.min(items.length - 1, current + 1);
   else if (event.key === "ArrowUp") next = Math.max(0, current - 1);
   else if (event.key === "Home") next = 0;
   else if (event.key === "End") next = items.length - 1;
-  else return;
+  else if (event.key === "ArrowRight") {
+    const item = items[current];
+    if (item.dataset.directory !== "true") return;
+    if (item.getAttribute("aria-expanded") === "false") {
+      event.preventDefault();
+      setDirectoryExpanded(item.dataset.path ?? "", true);
+      return;
+    }
+    const level = Number(item.getAttribute("aria-level"));
+    const child = items[current + 1];
+    if (child && Number(child.getAttribute("aria-level")) > level) {
+      event.preventDefault();
+      child.focus();
+    }
+    return;
+  } else if (event.key === "ArrowLeft") {
+    const item = items[current];
+    if (
+      item.dataset.directory === "true" &&
+      item.getAttribute("aria-expanded") === "true"
+    ) {
+      event.preventDefault();
+      setDirectoryExpanded(item.dataset.path ?? "", false);
+      return;
+    }
+    const level = Number(item.getAttribute("aria-level"));
+    for (let index = current - 1; index >= 0; index -= 1) {
+      if (Number(items[index].getAttribute("aria-level")) < level) {
+        event.preventDefault();
+        items[index].focus();
+        return;
+      }
+    }
+    return;
+  } else return;
   event.preventDefault();
   items[next]?.focus();
+}
+
+function normalizeDirectoryPath(path: string) {
+  return path.replace(/\/+$/, "");
+}
+
+function directoryAncestors(tree: FileEntry[], path: string) {
+  return tree
+    .filter(
+      (entry) =>
+        entry.directory &&
+        path.startsWith(`${normalizeDirectoryPath(entry.path)}/`),
+    )
+    .map((entry) => normalizeDirectoryPath(entry.path));
+}
+
+function visibleTreeEntries(
+  tree: FileEntry[],
+  expandedDirectories: ReadonlySet<string>,
+) {
+  return tree.filter((entry) =>
+    directoryAncestors(tree, entry.path).every((path) =>
+      expandedDirectories.has(path),
+    ),
+  );
 }
 
 function TranslationTabs({

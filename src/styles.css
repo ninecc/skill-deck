@@ -520,45 +520,50 @@ select:focus-visible {
   padding: 9px 12px;
 }
 .skill-identity {
+  flex: 1;
   min-width: 0;
+  display: grid;
+  gap: 2px;
 }
-.skill-identity h1 {
-  max-width: 100%;
-  margin: 0 0 5px;
+.skill-title-row {
+  min-width: 0;
+  display: grid;
+  grid-template-columns: minmax(0, max-content) minmax(0, 1fr);
+  align-items: baseline;
+  gap: 8px;
+}
+.skill-title-row h1,
+.skill-source,
+.skill-path {
+  min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+.skill-title-row h1 {
+  margin: 0;
   font-size: 15px;
   line-height: 20px;
   font-weight: 500;
 }
-.skill-provenance {
-  min-width: 0;
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  margin: 0;
+.skill-source {
+  color: var(--color-text-muted);
+  font-size: 11px;
 }
-.skill-provenance > div {
+.skill-source::before {
+  content: "·";
+  margin-inline-end: 8px;
+  color: var(--color-separator-strong);
+}
+.skill-location-row {
   min-width: 0;
-  display: flex;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
   align-items: center;
   gap: 4px;
 }
-.skill-provenance > div + div:not(.path-control)::before {
-  content: "·";
-  color: var(--color-separator-strong);
-}
-.skill-provenance dt {
-  display: none;
-}
-.skill-provenance dd {
-  min-width: 0;
-  max-width: 24ch;
-  margin: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+.skill-path {
+  color: var(--color-text-muted);
   font:
     10px/15px ui-monospace,
     SFMono-Regular,
@@ -591,41 +596,29 @@ select:focus-visible {
 .path-control {
   position: relative;
   flex: none;
-  margin-inline-start: 3px;
   min-width: 0;
-}
-.path-control dd {
-  max-width: none;
-  overflow: visible;
 }
 .path-button {
+  width: 27px;
   min-height: 27px;
-  max-width: 190px;
-  justify-content: flex-start;
-  padding: 2px 7px;
-  border-color: var(--color-separator-strong) !important;
-  background: var(--color-control) !important;
+  justify-content: center;
+  padding: 4px;
+  color: var(--color-text-muted);
+  border-color: transparent !important;
+  background: transparent !important;
 }
-.path-button span {
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  font:
-    10px/16px ui-monospace,
-    SFMono-Regular,
-    Consolas,
-    monospace;
-}
-.path-button .icon:last-child {
-  margin-inline-start: auto;
+.path-button:hover,
+.path-button[aria-expanded="true"] {
+  color: var(--color-text);
+  border-color: var(--color-separator) !important;
+  background: var(--color-control-hover) !important;
 }
 .file-tree {
   position: absolute;
   z-index: 5;
-  top: 35px;
-  inset-inline-end: 0;
-  width: min(300px, calc(100vw - var(--inventory-width) - 32px));
+  top: 32px;
+  inset-inline-start: 0;
+  width: min(304px, calc(100vw - var(--inventory-width) - 28px));
   max-height: min(420px, 55vh);
   overflow: auto;
   padding: 0;
@@ -637,7 +630,7 @@ select:focus-visible {
 .file-tree-header {
   display: grid;
   gap: 3px;
-  padding: 10px 10px 8px;
+  padding: 11px 12px 9px;
   border-bottom: 1px solid var(--color-separator);
 }
 .file-tree-header > div {
@@ -651,6 +644,7 @@ select:focus-visible {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+  font-size: 12px;
   font-weight: 500;
 }
 .file-tree-header span {
@@ -666,8 +660,13 @@ select:focus-visible {
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-.file-tree button,
-.tree-directory {
+.file-tree [role="tree"] {
+  display: flex;
+  flex-direction: column;
+  padding-block: 5px;
+  white-space: normal;
+}
+.file-tree button[role="treeitem"] {
   width: 100%;
   min-height: var(--tree-row-height);
   justify-content: flex-start;
@@ -678,23 +677,32 @@ select:focus-visible {
   text-align: left;
 }
 .tree-directory {
-  display: flex;
-  align-items: center;
   color: var(--color-text-muted);
   font-size: 12px;
 }
 .tree-directory .icon:first-child {
   width: 11px;
   height: 11px;
+  transition: transform 120ms ease;
+}
+.tree-directory[aria-expanded="false"] .icon:first-child {
   transform: rotate(-90deg);
 }
-.file-tree button span,
-.tree-directory span {
+.file-tree button[role="treeitem"] span {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-.file-tree button[aria-current="true"] {
+.file-tree button[role="treeitem"]:hover {
+  background: var(--color-control-hover);
+}
+.file-tree button[role="treeitem"]:focus-visible {
+  position: relative;
+  z-index: 1;
+  outline: 2px solid var(--color-focus);
+  outline-offset: -2px;
+}
+.file-tree button[role="treeitem"][aria-current="true"] {
   color: var(--color-text);
   background: color-mix(in srgb, var(--color-accent) 8%, var(--color-shelf));
   box-shadow: inset 2px 0 var(--color-accent);
@@ -723,6 +731,9 @@ select:focus-visible {
 }
 .viewer + .viewer {
   border-inline-start: 1px solid var(--color-separator);
+}
+.translation-view {
+  background: color-mix(in srgb, var(--color-document) 96%, var(--color-shelf));
 }
 .viewer h2:first-child {
   margin: 0 0 17px;
@@ -1269,12 +1280,12 @@ select:focus-visible {
     flex-direction: column;
     gap: 7px;
   }
+  .skill-identity {
+    width: 100%;
+  }
   .skill-command-groups {
     width: 100%;
     justify-content: flex-end;
-  }
-  .skill-provenance dd {
-    max-width: 20ch;
   }
   .viewer-grid.translated {
     grid-template-columns: 1fr;
@@ -1292,14 +1303,16 @@ select:focus-visible {
   .mobile-tabs {
     display: flex;
     flex: none;
-    gap: 14px;
-    padding: 0 12px;
+    gap: 0;
+    padding: 0;
     border-bottom: 1px solid var(--color-separator);
     background: var(--color-chrome);
   }
   .mobile-tabs button {
+    flex: 1;
     min-height: 32px;
-    padding: 3px 2px;
+    justify-content: center;
+    padding: 3px 10px;
     border: 0;
     border-radius: 0;
     background: transparent;
@@ -1307,6 +1320,9 @@ select:focus-visible {
   .mobile-tabs button[aria-selected="true"] {
     color: var(--color-accent);
     box-shadow: inset 0 -2px var(--color-accent);
+  }
+  .mobile-tabs button:focus-visible {
+    outline-offset: -3px;
   }
   .viewer {
     padding: 22px 24px;
@@ -1343,18 +1359,55 @@ select:focus-visible {
     display: none;
   }
   .egress {
-    max-width: 104px;
-  }
-  .skill-provenance dt,
-  .provenance-path {
     display: none;
   }
+  .skill-header {
+    height: 54px;
+    min-height: 54px;
+    flex-direction: row;
+    align-items: center;
+    gap: 8px;
+    padding-block: 8px;
+  }
+  .skill-identity {
+    width: auto;
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: center;
+    gap: 6px;
+  }
+  .skill-title-row {
+    grid-column: 1;
+    display: block;
+  }
+  .skill-source,
+  .skill-path {
+    display: none;
+  }
+  .skill-location-row {
+    grid-column: 2;
+    display: block;
+  }
   .path-control {
-    display: flex;
-    margin-inline-start: auto;
+    display: block;
   }
   .path-button {
-    max-width: 132px;
+    width: 30px;
+    padding-inline: 7px;
+  }
+  .file-tree {
+    inset-inline-start: auto;
+    inset-inline-end: 0;
+  }
+  .skill-command-groups button {
+    width: 30px;
+    padding-inline: 7px;
+  }
+  .skill-command-groups {
+    width: auto;
+    flex: none;
+  }
+  .skill-command-groups .command-label {
+    display: none;
   }
   .settings-sheet {
     max-height: calc(100vh - 24px);

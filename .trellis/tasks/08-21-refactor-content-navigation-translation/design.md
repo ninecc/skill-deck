@@ -15,6 +15,16 @@ directory trailing slashes allow ancestor visibility checks without a DTO
 change. Initialize all expanded, reset with a new tree/Skill and auto-reveal only
 selected ancestors on popover reopen.
 
+The identity block has a title row (`h1` plus muted source) and a location row
+(fixed file-tree trigger followed by monospace install path). The leading button
+is the action affordance for the adjacent path. Use `min-width: 0` and
+independent ellipsis so Skill name wins over source and the path consumes the
+second-row remainder. Compact mode uses one balanced row: a minmax Skill name
+and fixed icon-only file-tree trigger on the left, then four fixed icon-only
+actions on the right. Hide source, visible path and egress; retain the full path
+as non-visual DOM/title metadata. Use a distinct `folder-open` Reveal glyph and
+preserve every action label through title and accessible names.
+
 Translation remains a one- or two-column viewer composition driven by current
 state. At compact width, any pane switcher must preserve the approved two-pane
 desktop shell and keep both original and translated content reachable.

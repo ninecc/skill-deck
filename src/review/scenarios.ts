@@ -12,6 +12,10 @@ export const reviewScenarioIds = [
   "shell-empty",
   "shell-long",
   "shell-zh",
+  "content-tree",
+  "content-translation",
+  "content-translation-loading",
+  "content-translation-error",
 ] as const;
 
 export type ReviewScenarioId = (typeof reviewScenarioIds)[number];
@@ -91,6 +95,42 @@ export const canonicalTree: FileEntry[] = [
     viewer: "markdown",
     unsupportedReason: null,
   },
+  {
+    path: "references/notes.md",
+    name: "notes.md",
+    level: 2,
+    directory: false,
+    size: 228,
+    viewer: "markdown",
+    unsupportedReason: null,
+  },
+  {
+    path: "assets",
+    name: "assets",
+    level: 1,
+    directory: true,
+    size: 0,
+    viewer: "unsupported",
+    unsupportedReason: null,
+  },
+  {
+    path: "assets/cover.png",
+    name: "cover.png",
+    level: 2,
+    directory: false,
+    size: 18432,
+    viewer: "image",
+    unsupportedReason: null,
+  },
+  {
+    path: "README.txt",
+    name: "README.txt",
+    level: 1,
+    directory: false,
+    size: 198,
+    viewer: "text",
+    unsupportedReason: null,
+  },
 ];
 
 export const canonicalPreview: FileContent = {
@@ -141,6 +181,13 @@ export interface ReviewScenario {
   autoSelect: boolean;
   theme: Theme;
   locale: UiLocale;
+  reviewState:
+    | "none"
+    | "tree"
+    | "translation-success"
+    | "translation-loading"
+    | "translation-error";
+  translatedText?: string;
 }
 
 function ready(inventory: InstalledSkill[]): RuntimeStatus {
@@ -163,6 +210,7 @@ export const reviewScenarios: Record<ReviewScenarioId, ReviewScenario> = {
     autoSelect: true,
     theme: "dark",
     locale: "en",
+    reviewState: "none",
   },
   "shell-loading": {
     id: "shell-loading",
@@ -172,6 +220,7 @@ export const reviewScenarios: Record<ReviewScenarioId, ReviewScenario> = {
     autoSelect: false,
     theme: "dark",
     locale: "en",
+    reviewState: "none",
   },
   "shell-empty": {
     id: "shell-empty",
@@ -181,6 +230,7 @@ export const reviewScenarios: Record<ReviewScenarioId, ReviewScenario> = {
     autoSelect: false,
     theme: "dark",
     locale: "en",
+    reviewState: "none",
   },
   "shell-long": {
     id: "shell-long",
@@ -193,6 +243,7 @@ export const reviewScenarios: Record<ReviewScenarioId, ReviewScenario> = {
     autoSelect: true,
     theme: "light",
     locale: "en",
+    reviewState: "none",
   },
   "shell-zh": {
     id: "shell-zh",
@@ -205,6 +256,49 @@ export const reviewScenarios: Record<ReviewScenarioId, ReviewScenario> = {
     autoSelect: true,
     theme: "dark",
     locale: "zh-CN",
+    reviewState: "none",
+  },
+  "content-tree": {
+    id: "content-tree",
+    runtime: ready(canonicalInventory),
+    tree: canonicalTree,
+    preview: canonicalPreview,
+    autoSelect: true,
+    theme: "dark",
+    locale: "en",
+    reviewState: "tree",
+  },
+  "content-translation": {
+    id: "content-translation",
+    runtime: ready(canonicalInventory),
+    tree: canonicalTree,
+    preview: canonicalPreview,
+    autoSelect: true,
+    theme: "dark",
+    locale: "en",
+    reviewState: "translation-success",
+    translatedText:
+      "# 请教 Matt\n\n当你需要就 TypeScript、React 或 API 设计获得务实的第二意见时，请使用此 Skill。\n\n## 使用方式\n\n清楚说明决定以及重要约束，并提供最小可用示例。",
+  },
+  "content-translation-loading": {
+    id: "content-translation-loading",
+    runtime: ready(canonicalInventory),
+    tree: canonicalTree,
+    preview: canonicalPreview,
+    autoSelect: true,
+    theme: "dark",
+    locale: "en",
+    reviewState: "translation-loading",
+  },
+  "content-translation-error": {
+    id: "content-translation-error",
+    runtime: ready(canonicalInventory),
+    tree: canonicalTree,
+    preview: canonicalPreview,
+    autoSelect: true,
+    theme: "dark",
+    locale: "en",
+    reviewState: "translation-error",
   },
 };
 

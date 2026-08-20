@@ -28,4 +28,18 @@ describe("UI review IPC", () => {
       "Unhandled review IPC command: remove_skill",
     );
   });
+
+  it("provides deterministic translation success and failure states", async () => {
+    const success = reviewScenarios["content-translation"];
+    installReviewIpc(success);
+    await expect(invoke("translate_preview")).resolves.toMatchObject({
+      translatedText: success.translatedText,
+    });
+    clearMocks();
+
+    installReviewIpc(reviewScenarios["content-translation-error"]);
+    await expect(invoke("translate_preview")).rejects.toMatchObject({
+      code: "translation_unavailable",
+    });
+  });
 });

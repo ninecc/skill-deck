@@ -72,6 +72,72 @@ describe("CLI-backed workspace", () => {
     ).toBe("false");
   });
 
+  it("composes selected Skill identity into title and location rows", async () => {
+    await act(async () => root.render(<App />));
+    await act(async () =>
+      (container.querySelector('[role="option"]') as HTMLButtonElement).click(),
+    );
+
+    const identity = container.querySelector(".skill-identity") as HTMLElement;
+    const titleRow = identity.querySelector(".skill-title-row") as HTMLElement;
+    const locationRow = identity.querySelector(
+      ".skill-location-row",
+    ) as HTMLElement;
+    expect(titleRow.querySelector("h1")?.textContent).toBe("demo");
+    expect(titleRow.querySelector(".skill-source")?.textContent).toContain(
+      "owner/repo",
+    );
+    expect(locationRow.querySelector(".skill-path")?.textContent).toContain(
+      "/tmp/demo",
+    );
+    expect(
+      locationRow.querySelector('[aria-label="Open file tree"]'),
+    ).not.toBeNull();
+    expect(locationRow.querySelector(".compact-path-label")).toBeNull();
+    expect(
+      locationRow
+        .querySelector('[aria-label="Open file tree"] .icon')
+        ?.getAttribute("data-icon"),
+    ).toBe("folder");
+    expect(locationRow.children[0].classList.contains("path-control")).toBe(
+      true,
+    );
+    expect(locationRow.children[1].classList.contains("skill-path")).toBe(true);
+    expect(identity.children[0]).toBe(titleRow);
+    expect(identity.children[1]).toBe(locationRow);
+  });
+
+  it("keeps the full install path as non-visual identity metadata", async () => {
+    const longPath =
+      "~/.agents/skills/a-deliberately-long-skill-name-for-layout-pressure";
+    invokeMock.mockImplementation((command: string) => {
+      if (command === "runtime_status")
+        return Promise.resolve({
+          ready: true,
+          errorCode: null,
+          version: "1.5.22",
+          nodeVersion: "22.20.0",
+          message: null,
+          inventory: [{ ...demoSkill, path: longPath }],
+        });
+      if (command === "preview_tree") return Promise.resolve([]);
+      return Promise.reject(new Error(`Unexpected command: ${command}`));
+    });
+    await act(async () => root.render(<App />));
+    await act(async () =>
+      (container.querySelector('[role="option"]') as HTMLButtonElement).click(),
+    );
+
+    const trigger = container.querySelector(
+      '[aria-label="Open file tree"]',
+    ) as HTMLButtonElement;
+    const path = container.querySelector(".skill-path") as HTMLElement;
+    expect(path.textContent).toContain(longPath);
+    expect(path.title).toBe(longPath);
+    expect(trigger.querySelector("span")).toBeNull();
+    expect(trigger.title).toBe("Browse files");
+  });
+
   it("renders startup chrome before the runtime probe completes", async () => {
     invokeMock.mockImplementation(() => new Promise(() => undefined));
     await act(async () => root.render(<App />));
@@ -533,6 +599,26 @@ describe("CLI-backed workspace", () => {
     );
     expect(container.querySelector(".viewer a")).toBeNull();
     expect(container.querySelector(".viewer img")).toBeNull();
+    expect(
+      container
+        .querySelector('[aria-label="Translate"] .icon')
+        ?.getAttribute("data-icon"),
+    ).toBe("translate");
+    expect(
+      container
+        .querySelector('[aria-label="Reveal file"] .icon')
+        ?.getAttribute("data-icon"),
+    ).toBe("folder-open");
+    expect(
+      container
+        .querySelector('[aria-label="Update"] .icon')
+        ?.getAttribute("data-icon"),
+    ).toBe("update-skill");
+    expect(
+      container
+        .querySelector('[aria-label="Remove"] .icon')
+        ?.getAttribute("data-icon"),
+    ).toBe("trash");
 
     await act(async () =>
       (container.querySelector(".path-button") as HTMLButtonElement).click(),
@@ -540,6 +626,8 @@ describe("CLI-backed workspace", () => {
     const pathButton = container.querySelector(
       ".path-button",
     ) as HTMLButtonElement;
+    expect(pathButton.getAttribute("aria-label")).toBe("Open file tree");
+    expect(pathButton.title).toBe("Browse files");
     const tree = container.querySelector(".file-tree") as HTMLElement;
     const ariaTree = tree.querySelector('[role="tree"]') as HTMLElement;
     expect(ariaTree.previousElementSibling?.className).toBe("file-tree-header");
@@ -556,11 +644,226 @@ describe("CLI-backed workspace", () => {
     ) as HTMLButtonElement;
     expect(unsupported.disabled).toBe(false);
     await act(async () => unsupported.click());
+    await act(async () => new Promise((resolve) => setTimeout(resolve, 20)));
+    expect(document.activeElement).toBe(pathButton);
     expect(container.textContent).toContain("123 bytes");
     expect(container.querySelector(".preview-loading")).toBeNull();
     expect(
       container.querySelector('[aria-label="Reveal file"]'),
     ).not.toBeNull();
+  });
+
+  it("supports folder disclosure, tree navigation, and selected ancestor reveal", async () => {
+    const entries = [
+      {
+        path: "SKILL.md",
+        name: "SKILL.md",
+        level: 1,
+        directory: false,
+        size: 40,
+        viewer: "markdown",
+        unsupportedReason: null,
+      },
+      {
+        path: "references",
+        name: "references",
+        level: 1,
+        directory: true,
+        size: 0,
+        viewer: "unsupported",
+        unsupportedReason: null,
+      },
+      {
+        path: "references/nested",
+        name: "nested",
+        level: 2,
+        directory: true,
+        size: 0,
+        viewer: "unsupported",
+        unsupportedReason: null,
+      },
+      {
+        path: "references/nested/notes.md",
+        name: "notes.md",
+        level: 3,
+        directory: false,
+        size: 12,
+        viewer: "markdown",
+        unsupportedReason: null,
+      },
+      {
+        path: "assets",
+        name: "assets",
+        level: 1,
+        directory: true,
+        size: 0,
+        viewer: "unsupported",
+        unsupportedReason: null,
+      },
+      {
+        path: "assets/cover.png",
+        name: "cover.png",
+        level: 2,
+        directory: false,
+        size: 24,
+        viewer: "image",
+        unsupportedReason: null,
+      },
+    ] as const;
+    let treeLoads = 0;
+    invokeMock.mockImplementation(
+      (command: string, args?: { path?: string }) => {
+        if (command === "runtime_status")
+          return Promise.resolve({
+            ready: true,
+            errorCode: null,
+            version: "1.5.22",
+            nodeVersion: "22.20.0",
+            message: null,
+            inventory: [demoSkill],
+          });
+        if (command === "preview_tree") {
+          treeLoads += 1;
+          return Promise.resolve(
+            treeLoads === 1
+              ? entries
+              : entries.filter(
+                  (entry) =>
+                    entry.path !== "references/nested/notes.md" &&
+                    entry.path !== "references/nested",
+                ),
+          );
+        }
+        if (command === "read_preview")
+          return Promise.resolve({
+            path: args?.path,
+            viewer: "markdown",
+            size: 12,
+            text: args?.path,
+            dataUrl: null,
+            translatable: true,
+          });
+        return Promise.reject(new Error(`Unexpected command: ${command}`));
+      },
+    );
+    await act(async () => root.render(<App />));
+    await act(async () =>
+      (container.querySelector('[role="option"]') as HTMLButtonElement).click(),
+    );
+    const trigger = container.querySelector(
+      ".path-button",
+    ) as HTMLButtonElement;
+    await act(async () => trigger.click());
+    await act(async () => new Promise((resolve) => setTimeout(resolve, 20)));
+    const references = container.querySelector(
+      '[data-path="references"]',
+    ) as HTMLButtonElement;
+    expect(references.tagName).toBe("BUTTON");
+    expect(references.getAttribute("aria-expanded")).toBe("true");
+    await act(async () => references.focus());
+
+    await act(async () =>
+      references.dispatchEvent(
+        new KeyboardEvent("keydown", { key: "ArrowLeft", bubbles: true }),
+      ),
+    );
+    expect(references.getAttribute("aria-expanded")).toBe("false");
+    expect(references.tabIndex).toBe(0);
+    expect(
+      container
+        .querySelector('[data-path="SKILL.md"]')
+        ?.getAttribute("tabindex"),
+    ).toBe("-1");
+    expect(
+      container.querySelector('[data-path="references/nested"]'),
+    ).toBeNull();
+
+    await act(async () =>
+      (
+        container.querySelector('[data-path="references"]') as HTMLButtonElement
+      ).dispatchEvent(
+        new KeyboardEvent("keydown", { key: "ArrowRight", bubbles: true }),
+      ),
+    );
+    expect(
+      container
+        .querySelector('[data-path="references"]')
+        ?.getAttribute("aria-expanded"),
+    ).toBe("true");
+    expect((document.activeElement as HTMLElement).dataset.path).toBe(
+      "references",
+    );
+    await act(async () =>
+      (
+        container.querySelector('[data-path="references"]') as HTMLButtonElement
+      ).dispatchEvent(
+        new KeyboardEvent("keydown", { key: "ArrowRight", bubbles: true }),
+      ),
+    );
+    expect((document.activeElement as HTMLElement).dataset.path).toBe(
+      "references/nested",
+    );
+
+    const assets = container.querySelector(
+      '[data-path="assets"]',
+    ) as HTMLButtonElement;
+    await act(async () => assets.click());
+    expect(assets.getAttribute("aria-expanded")).toBe("false");
+    const notes = container.querySelector(
+      '[data-path="references/nested/notes.md"]',
+    ) as HTMLButtonElement;
+    await act(async () => notes.click());
+    await act(async () => new Promise((resolve) => setTimeout(resolve, 20)));
+    expect(document.activeElement).toBe(trigger);
+
+    await act(async () => trigger.click());
+    await act(async () => new Promise((resolve) => setTimeout(resolve, 20)));
+    expect(
+      container
+        .querySelector('[data-path="references"]')
+        ?.getAttribute("aria-expanded"),
+    ).toBe("true");
+    expect(
+      container
+        .querySelector('[data-path="references/nested"]')
+        ?.getAttribute("aria-expanded"),
+    ).toBe("true");
+    expect(
+      container
+        .querySelector('[data-path="assets"]')
+        ?.getAttribute("aria-expanded"),
+    ).toBe("false");
+    expect((document.activeElement as HTMLElement).dataset.path).toBe(
+      "references/nested/notes.md",
+    );
+
+    await act(async () =>
+      document.body.dispatchEvent(
+        new MouseEvent("mousedown", { bubbles: true }),
+      ),
+    );
+    await act(async () => new Promise((resolve) => setTimeout(resolve, 20)));
+    expect(container.querySelector(".file-tree")).toBeNull();
+    expect(document.activeElement).toBe(trigger);
+
+    await act(async () =>
+      (
+        container.querySelector(
+          '[aria-label="Refresh Inventory"]',
+        ) as HTMLButtonElement
+      ).click(),
+    );
+    await act(async () => new Promise((resolve) => setTimeout(resolve, 20)));
+    await act(async () => trigger.click());
+    await act(async () => new Promise((resolve) => setTimeout(resolve, 20)));
+    expect((document.activeElement as HTMLElement).dataset.path).toBe(
+      "SKILL.md",
+    );
+    expect(
+      container
+        .querySelector('[data-path="assets"]')
+        ?.getAttribute("aria-expanded"),
+    ).toBe("true");
   });
 
   it("keeps original content and retries sanitized translation failures", async () => {
@@ -642,6 +945,20 @@ describe("CLI-backed workspace", () => {
       (button) => button.textContent === "Retry",
     ) as HTMLButtonElement;
     await act(async () => retry.click());
+    expect(container.textContent).toContain("translated");
+    expect(translations).toBe(2);
+
+    const translationTab = container.querySelector(
+      "#translation-tab",
+    ) as HTMLButtonElement;
+    const originalTab = container.querySelector(
+      "#original-tab",
+    ) as HTMLButtonElement;
+    await act(async () => translationTab.click());
+    expect(translationTab.getAttribute("aria-selected")).toBe("true");
+    expect(container.textContent).toContain("translated");
+    await act(async () => originalTab.click());
+    expect(originalTab.getAttribute("aria-selected")).toBe("true");
     expect(container.textContent).toContain("translated");
     expect(translations).toBe(2);
 

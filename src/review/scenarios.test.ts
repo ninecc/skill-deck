@@ -21,6 +21,13 @@ describe("UI review scenarios", () => {
       reviewScenarios["shell-ready"].preview.text?.length ?? 0,
     );
     expect(reviewScenarios["shell-zh"].locale).toBe("zh-CN");
+    expect(reviewScenarios["content-tree"].reviewState).toBe("tree");
+    expect(
+      reviewScenarios["content-tree"].tree.filter((entry) => !entry.directory),
+    ).toHaveLength(5);
+    expect(reviewScenarios["content-translation"].translatedText).toContain(
+      "请教 Matt",
+    );
     expect(canonicalReviewMarker).toContain("CANONICAL_REVIEW_FIXTURE");
   });
 

@@ -19,8 +19,16 @@ export function installReviewIpc(scenario: ReviewScenario) {
       case "search_skills":
         return [];
       case "translate_preview":
+        if (scenario.reviewState === "translation-loading")
+          return new Promise(() => undefined);
+        if (scenario.reviewState === "translation-error")
+          throw {
+            code: "translation_unavailable",
+            message: "Deterministic review translation failure",
+          };
         return {
-          translatedText: scenario.preview.text ?? "",
+          translatedText:
+            scenario.translatedText ?? scenario.preview.text ?? "",
           detectedSourceLanguage: "en",
         };
       default:

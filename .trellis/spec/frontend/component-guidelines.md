@@ -56,6 +56,26 @@ at `aria-level="1"`, retains full slash paths in accessible names/data, and
 supports keyboard selection. Unsupported files remain selectable so their
 type/size state and Reveal action are available.
 
+Folder rows are real accessible tree disclosures, not decorative divs. Keep the
+single roving tab stop in React state so collapse/expand rerenders cannot leave
+DOM focus on a `tabIndex={-1}` node. Support Up/Down/Home/End across visible
+treeitems, Right to expand/enter, and Left to collapse/return to the parent.
+Initialize a refreshed tree expanded to preserve existing file visibility;
+reopening reveals and focuses the selected file without discarding unrelated
+folder toggles. Escape, outside dismissal and file activation restore focus to
+the file-tree trigger.
+
+```tsx
+const [treeFocusPath, setTreeFocusPath] = useState<string | null>(null);
+<button tabIndex={treeFocusPath === entry.path ? 0 : -1} />;
+```
+
+At the 720×520 compact boundary, secondary provenance and visible command copy
+may be hidden, but the full path must remain in non-visual metadata and every
+icon-only command must retain its localized accessible name, tooltip and shared
+availability/execution path. Use visually distinct glyphs for file browsing and
+Reveal File so two different commands do not collapse into the same symbol.
+
 ## Application Commands and Desktop Layout
 
 Toolbar buttons, native menu items, shortcuts, and context-menu items are

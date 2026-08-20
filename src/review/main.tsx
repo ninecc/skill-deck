@@ -45,16 +45,29 @@ function ReviewMount({ value }: { value: ReviewScenario }) {
     if (!value.autoSelect || value.runtime === "pending") return;
     const targetName = value.runtime.inventory[0]?.name;
     if (!targetName) return;
-    const observer = new MutationObserver(() => {
+    let selected = false;
+    let timer = 0;
+    const activate = () => {
       const row = document.querySelector<HTMLButtonElement>(
         `[data-skill="${CSS.escape(targetName)}"]`,
       );
-      if (!row) return;
-      row.click();
-      observer.disconnect();
-    });
-    observer.observe(document.body, { childList: true, subtree: true });
-    return () => observer.disconnect();
+      if (!selected && row) {
+        selected = true;
+        row.click();
+      }
+      if (!selected || value.reviewState === "none") {
+        if (selected) clearInterval(timer);
+        return;
+      }
+      const selector =
+        value.reviewState === "tree" ? ".path-button" : ".translation-toggle";
+      const control = document.querySelector<HTMLButtonElement>(selector);
+      if (!control) return;
+      control.click();
+      clearInterval(timer);
+    };
+    timer = window.setInterval(activate, 25);
+    return () => clearInterval(timer);
   }, [value]);
 
   return <App />;

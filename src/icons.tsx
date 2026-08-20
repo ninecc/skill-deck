@@ -2,6 +2,8 @@ import type { ComponentType, SVGProps } from "react";
 import ChevronDown from "~icons/lucide/chevron-down";
 import FileText from "~icons/lucide/file-text";
 import Folder from "~icons/lucide/folder";
+import FolderOpen from "~icons/lucide/folder-open";
+import Image from "~icons/lucide/image";
 import Languages from "~icons/lucide/languages";
 import PackagePlus from "~icons/lucide/package-plus";
 import RefreshCw from "~icons/lucide/refresh-cw";
@@ -20,7 +22,9 @@ export type IconName =
   | "update-all"
   | "update-skill"
   | "folder"
+  | "folder-open"
   | "file"
+  | "image"
   | "translate"
   | "trash"
   | "download"
@@ -37,7 +41,9 @@ const icons = {
   "update-all": UpdateAll,
   "update-skill": UpdateSkill,
   folder: Folder,
+  "folder-open": FolderOpen,
   file: FileText,
+  image: Image,
   translate: Languages,
   trash: Trash,
   download: UpdateSkill,
