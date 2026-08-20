@@ -13,11 +13,12 @@ export function installReviewIpc(scenario: ReviewScenario) {
       case "preview_tree":
         return scenario.tree;
       case "read_preview":
+        if (scenario.previewFailure) throw new Error(scenario.previewFailure);
         return scenario.preview;
       case "reveal_path":
         return undefined;
       case "search_skills":
-        return [];
+        return scenario.searchResults ?? [];
       case "translate_preview":
         if (scenario.reviewState === "translation-loading")
           return new Promise(() => undefined);

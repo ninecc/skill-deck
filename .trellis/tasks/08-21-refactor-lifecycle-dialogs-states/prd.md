@@ -35,16 +35,16 @@ model or upstream CLI lifecycle authority.
 
 ## Acceptance Criteria
 
-- [ ] References 14–19 are reproducible in the running application and match
+- [x] References 14–19 are reproducible in the running application and match
       Pencil at 1180×800 without clipping at 720×520.
-- [ ] Dialog focus trap, Escape/cancel, destructive confirmation and trigger
+- [x] Dialog focus trap, Escape/cancel, destructive confirmation and trigger
       focus restoration remain correct.
-- [ ] Loading/error/empty/partial/success states expose textual meaning and
+- [x] Loading/error/empty/partial/success states expose textual meaning and
       recovery actions without relying on color.
-- [ ] Existing command and lifecycle tests pass with added state coverage.
-- [ ] Search/source tab switching and normal/unresolved reopen lifecycles are
+- [x] Existing command and lifecycle tests pass with added state coverage.
+- [x] Search/source tab switching and normal/unresolved reopen lifecycles are
       behaviorally tested.
-- [ ] Full frontend quality gate passes.
+- [x] Full frontend quality gate passes.
 
 ## Out of scope
 

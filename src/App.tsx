@@ -60,10 +60,16 @@ const markdownComponents: ComponentProps<typeof ReactMarkdown>["components"] = {
 };
 
 type OperationKind = "refresh" | "install" | "update" | "remove";
+type DiscoveryTab = "search" | "source";
 type Modal =
   | { kind: "settings"; trigger: HTMLElement | null }
   | { kind: "discovery"; trigger: HTMLElement | null }
-  | { kind: "remove"; name: string; trigger: HTMLElement | null }
+  | {
+      kind: "remove";
+      name: string;
+      trigger: HTMLElement | null;
+      confirmed?: boolean;
+    }
   | null;
 type Feedback = {
   severity: "neutral" | "success" | "partial" | "error";
@@ -111,6 +117,7 @@ export default function App() {
   const [searchQuery, setSearchQuery] = useState("");
   const [searchResults, setSearchResults] = useState<SearchResult[]>([]);
   const [source, setSource] = useState("");
+  const [discoveryTab, setDiscoveryTab] = useState<DiscoveryTab>("search");
   const [discoveryError, setDiscoveryError] = useState<string | null>(null);
   const [unresolvedDiscovery, setUnresolvedDiscovery] = useState(false);
   const [lastDiscoveryTarget, setLastDiscoveryTarget] = useState<{
@@ -213,8 +220,15 @@ export default function App() {
         setFile(content);
       }
     } catch (value: unknown) {
-      if (previewRequest.current === request)
-        setPreviewError(commandErrorMessage(value));
+      if (previewRequest.current === request) {
+        const message = commandErrorMessage(value);
+        setPreviewError(message);
+        setFeedback({
+          severity: "error",
+          summary: copy.previewError,
+          diagnostics: message,
+        });
+      }
     } finally {
       if (previewRequest.current === request) setPreviewLoading(false);
     }
@@ -357,6 +371,7 @@ export default function App() {
         return;
       case "find-install":
         if (!unresolvedDiscovery) {
+          setDiscoveryTab("search");
           setSearchQuery("");
           setSearchResults([]);
           setSource("");
@@ -386,7 +401,7 @@ export default function App() {
         return;
       case "reveal-skill":
         if (selected)
-          void revealPath(selected, file?.path ?? null).catch(
+          void revealPath(selected, file?.path ?? previewPath.current).catch(
             (value: unknown) =>
               setFeedback({
                 severity: "error",
@@ -772,35 +787,38 @@ export default function App() {
       {!runtime?.ready && (
         <section className="runtime-screen" aria-live="polite">
           {runtimeFailure ? (
-            <>
+            <div className="operational-state runtime-failure-state">
+              <span className="state-symbol" aria-hidden="true">
+                <Icon name="runtime-warning" />
+              </span>
               <h1>{copy.runtimeErrorTitle}</h1>
               <p role="alert">{runtimeFailure[0]}</p>
               {runtimeFailure[1] && <small>{runtimeFailure[1]}</small>}
-            </>
+              <button
+                type="button"
+                onClick={() => {
+                  setRuntime(null);
+                  setRuntimeError(null);
+                  void retryRuntime()
+                    .then((status) => {
+                      setRuntime(status);
+                      setInventory(status.inventory);
+                    })
+                    .catch((value: unknown) =>
+                      setRuntimeError(commandErrorMessage(value)),
+                    );
+                }}
+              >
+                <Icon name="refresh" />
+                {copy.retry}
+              </button>
+            </div>
           ) : (
-            <p className="loading-copy">
+            <div className="operational-state loading-state">
               <span className="spinner" aria-hidden="true" />
-              {copy.loadingSkills}
-            </p>
-          )}
-          {(runtime || runtimeError) && (
-            <button
-              type="button"
-              onClick={() => {
-                setRuntime(null);
-                setRuntimeError(null);
-                void retryRuntime()
-                  .then((status) => {
-                    setRuntime(status);
-                    setInventory(status.inventory);
-                  })
-                  .catch((value: unknown) =>
-                    setRuntimeError(commandErrorMessage(value)),
-                  );
-              }}
-            >
-              {copy.retry}
-            </button>
+              <h1>{copy.loadingSkills}</h1>
+              <p>{copy.loadingDetail}</p>
+            </div>
           )}
         </section>
       )}
@@ -876,7 +894,17 @@ export default function App() {
             ))}
           </div>
           {runtime?.ready && inventory.length === 0 && !filter.trim() && (
-            <p className="empty-list">{copy.noSkills}</p>
+            <div className="inventory-empty-state operational-state">
+              <span className="state-symbol" aria-hidden="true">
+                <Icon name="empty-inventory" />
+              </span>
+              <strong>{copy.noSkills}</strong>
+              <p>{copy.emptyInventoryMessage}</p>
+              <button type="button" onClick={() => dispatch("find-install")}>
+                <Icon name="install" />
+                {copy.findInstall}
+              </button>
+            </div>
           )}
           {runtime?.ready && inventory.length > 0 && visible.length === 0 && (
             <p className="empty-list">{copy.noMatchingSkills}</p>
@@ -885,7 +913,13 @@ export default function App() {
 
         <section className="detail-pane" aria-label={copy.preview}>
           {!selected ? (
-            <p className="choose-placeholder">{copy.chooseSkill}</p>
+            <div className="choose-placeholder operational-state">
+              <span className="state-symbol" aria-hidden="true">
+                <Icon name="preview-placeholder" />
+              </span>
+              <strong>{copy.emptyPreviewTitle}</strong>
+              <p>{copy.emptyPreviewMessage}</p>
+            </div>
           ) : (
             <>
               <div className="detail-toolbar">
@@ -1108,17 +1142,32 @@ export default function App() {
                 />
               )}
               {previewError ? (
-                <div className="preview-error" role="alert">
+                <div className="preview-error operational-state" role="alert">
+                  <span className="state-symbol" aria-hidden="true">
+                    <Icon name="preview-warning" />
+                  </span>
                   <strong>{copy.previewError}</strong>
-                  <p>{previewError}</p>
-                  <button
-                    type="button"
-                    onClick={() =>
-                      void loadPreview(selected, previewPath.current)
-                    }
-                  >
-                    {copy.retry}
-                  </button>
+                  <p>{copy.previewErrorMessage}</p>
+                  <div className="state-actions">
+                    <button
+                      type="button"
+                      onClick={() =>
+                        void loadPreview(selected, previewPath.current)
+                      }
+                    >
+                      <Icon name="refresh" />
+                      {copy.retry}
+                    </button>
+                    <button
+                      type="button"
+                      className="secondary"
+                      onClick={() => dispatch("reveal-skill")}
+                    >
+                      <Icon name="folder-open" />
+                      {copy.revealFile}
+                    </button>
+                  </div>
+                  <small className="state-diagnostic">{previewError}</small>
                 </div>
               ) : previewLoading ? (
                 <p className="loading-copy preview-loading">
@@ -1180,9 +1229,19 @@ export default function App() {
         </section>
       </div>
 
-      <footer className={`status-bar status-${feedback?.severity ?? "ready"}`}>
+      <footer
+        className={`status-bar status-${runtimeFailure ? "error" : (feedback?.severity ?? "ready")}`}
+      >
         <div className="status-summary">
-          {operation ? (
+          {!runtime && !runtimeError ? (
+            <span className="status-announcement" aria-live="polite">
+              {copy.starting}
+            </span>
+          ) : runtimeFailure ? (
+            <span className="status-announcement" aria-live="polite">
+              {copy.runtimeUnavailableStatus}
+            </span>
+          ) : operation ? (
             <span className="status-announcement" aria-live="polite">
               <span className="spinner" aria-hidden="true" />
               {copy.busy}
@@ -1231,7 +1290,9 @@ export default function App() {
           )}
         </div>
         <span className="status-facts">
-          {copy.installed}: {inventory.length} · CLI {runtime?.version ?? "—"}
+          {runtimeFailure
+            ? copy.actionRequired
+            : `${copy.installed}: ${inventory.length} · CLI ${runtime?.version ?? "—"}`}
         </span>
       </footer>
 
@@ -1251,9 +1312,13 @@ export default function App() {
           onClose={closeModal}
           returnFocus={modal.trigger}
           initialFocus="input"
+          className="discovery-modal"
         >
-          <header>
-            <h2 id="find-install-title">{copy.findInstall}</h2>
+          <header className="discovery-header">
+            <div>
+              <h2 id="find-install-title">{copy.findInstall}</h2>
+              <p>{copy.findInstallSubtitle}</p>
+            </div>
             <button
               className="icon-button"
               type="button"
@@ -1263,105 +1328,127 @@ export default function App() {
               <Icon name="close" />
             </button>
           </header>
-          <section className="discovery" aria-labelledby="find-heading">
-            <h3 id="find-heading">{copy.search}</h3>
-            <form
-              onSubmit={(event) => {
-                event.preventDefault();
-                setDiscoveryError(null);
-                setUnresolvedDiscovery(false);
-                setLastDiscoveryTarget(null);
-                setFeedback(null);
-                void searchSkills(searchQuery)
-                  .then(setSearchResults)
-                  .catch((value: unknown) =>
-                    setDiscoveryError(commandErrorMessage(value)),
-                  );
-              }}
+          <nav className="discovery-tabs" aria-label={copy.installMethod}>
+            <button
+              type="button"
+              aria-current={discoveryTab === "search" ? "page" : undefined}
+              onClick={() => setDiscoveryTab("search")}
             >
-              <input
-                value={searchQuery}
-                onChange={(event) => setSearchQuery(event.target.value)}
-                aria-label={copy.searchQuery}
-                required
-              />
-              <button
-                type="submit"
-                className="icon-button"
-                aria-label={copy.search}
-              >
-                <Icon name="search" />
-              </button>
-            </form>
+              {copy.searchTab}
+            </button>
+            <button
+              type="button"
+              aria-current={discoveryTab === "source" ? "page" : undefined}
+              onClick={() => setDiscoveryTab("source")}
+            >
+              {copy.fromSource}
+            </button>
+          </nav>
+          <section className="discovery">
             {discoveryError && (
               <p className="error" role="alert">
                 {discoveryError}
               </p>
             )}
-            {searchResults.map((result) => (
-              <div className="search-result" key={result.slug}>
-                <span>
-                  <strong>{result.name}</strong>
-                  <small>
-                    {result.source} · {result.installs.toLocaleString(locale)}
-                  </small>
-                </span>
-                <button
-                  type="button"
-                  disabled={operation !== null}
-                  onClick={() => {
-                    setLastDiscoveryTarget({
-                      source: result.source,
-                      name: result.name,
-                    });
-                    startOperation(
-                      "install",
-                      () =>
-                        addSkill(result.source, result.name, {
-                          agents: preferences.agents,
-                          copy: preferences.copy,
-                        }),
-                      { type: "search", name: result.name },
-                    );
+            {discoveryTab === "search" ? (
+              <div className="discovery-panel" id="discovery-search-panel">
+                <form
+                  className="catalog-search"
+                  onSubmit={(event) => {
+                    event.preventDefault();
+                    setDiscoveryError(null);
+                    setUnresolvedDiscovery(false);
+                    setLastDiscoveryTarget(null);
+                    setFeedback(null);
+                    void searchSkills(searchQuery)
+                      .then(setSearchResults)
+                      .catch((value: unknown) =>
+                        setDiscoveryError(commandErrorMessage(value)),
+                      );
                   }}
                 >
-                  {copy.install}
-                </button>
+                  <Icon name="search" />
+                  <input
+                    value={searchQuery}
+                    onChange={(event) => setSearchQuery(event.target.value)}
+                    aria-label={copy.searchQuery}
+                    required
+                  />
+                  <button type="submit">{copy.searchAction}</button>
+                </form>
+                <div className="search-results" aria-live="polite">
+                  {searchResults.map((result) => (
+                    <div className="search-result" key={result.slug}>
+                      <span>
+                        <strong>{result.name}</strong>
+                        <small>
+                          {result.source} ·{" "}
+                          {result.installs.toLocaleString(locale)}{" "}
+                          {copy.installs}
+                        </small>
+                      </span>
+                      <button
+                        type="button"
+                        disabled={operation !== null}
+                        onClick={() => {
+                          setLastDiscoveryTarget({
+                            source: result.source,
+                            name: result.name,
+                          });
+                          startOperation(
+                            "install",
+                            () =>
+                              addSkill(result.source, result.name, {
+                                agents: preferences.agents,
+                                copy: preferences.copy,
+                              }),
+                            { type: "search", name: result.name },
+                          );
+                        }}
+                      >
+                        <Icon name="download" />
+                        {copy.install}
+                      </button>
+                    </div>
+                  ))}
+                </div>
               </div>
-            ))}
-            <form
-              className="source-install"
-              onSubmit={(event) => {
-                event.preventDefault();
-                setLastDiscoveryTarget({ source, name: null });
-                startOperation(
-                  "install",
-                  () =>
-                    addSkill(source, null, {
-                      agents: preferences.agents,
-                      copy: preferences.copy,
-                    }),
-                  { type: "source" },
-                );
-              }}
-            >
-              <label>
-                {copy.installSource}
+            ) : (
+              <form
+                className="source-install discovery-panel"
+                onSubmit={(event) => {
+                  event.preventDefault();
+                  setLastDiscoveryTarget({ source, name: null });
+                  startOperation(
+                    "install",
+                    () =>
+                      addSkill(source, null, {
+                        agents: preferences.agents,
+                        copy: preferences.copy,
+                      }),
+                    { type: "source" },
+                  );
+                }}
+              >
+                <label htmlFor="install-source-input">
+                  {copy.installSource}
+                </label>
                 <input
+                  id="install-source-input"
                   value={source}
                   onChange={(event) => setSource(event.target.value)}
                   required
                 />
-              </label>
-              <small>{copy.sourceHint}</small>
-              <button type="submit" disabled={operation !== null}>
-                <Icon name="download" />
-                {copy.install}
-              </button>
-            </form>
-            {operation === "install" && <small>{copy.commandContinues}</small>}
+                <small>{copy.sourceHint}</small>
+                <button type="submit" disabled={operation !== null}>
+                  <Icon name="download" />
+                  {copy.install}
+                </button>
+              </form>
+            )}
             {unresolvedDiscovery && (
               <button
+                className="discovery-retry"
                 type="button"
                 disabled={operation !== null || !lastDiscoveryTarget}
                 onClick={() => {
@@ -1387,23 +1474,42 @@ export default function App() {
               </button>
             )}
           </section>
+          <footer className="discovery-footer">
+            <small>{copy.pinnedCliTrust}</small>
+            {operation === "install" ? (
+              <small>{copy.commandContinues}</small>
+            ) : discoveryTab === "search" ? (
+              <button type="button" onClick={() => setDiscoveryTab("source")}>
+                {copy.installFromSourceAction}
+              </button>
+            ) : null}
+          </footer>
         </ModalShell>
       )}
       {modal?.kind === "remove" && (
         <ModalShell
           labelledBy="remove-title"
           onClose={closeModal}
-          returnFocus={modal.trigger}
+          returnFocus={modal.confirmed ? null : modal.trigger}
           fallbackFocus="#installed-heading"
           initialFocus=".cancel-button"
           className="confirmation-modal"
         >
-          <header>
-            <h2 id="remove-title">{copy.confirm}</h2>
+          <header className="remove-dialog-header">
+            <h2 id="remove-title">
+              {copy.removeTitle.replace("{name}", modal.name)}
+            </h2>
           </header>
-          <p>{copy.confirmRemove}</p>
-          {operation === "remove" && <small>{copy.commandContinues}</small>}
-          <div className="modal-actions">
+          <div className="remove-dialog-content">
+            <p>{copy.removeExplanation}</p>
+            <code
+              title={inventory.find((skill) => skill.name === modal.name)?.path}
+            >
+              {inventory.find((skill) => skill.name === modal.name)?.path}
+            </code>
+            {operation === "remove" && <small>{copy.commandContinues}</small>}
+          </div>
+          <footer className="modal-actions">
             <button
               type="button"
               className="cancel-button"
@@ -1415,13 +1521,18 @@ export default function App() {
               type="button"
               className="danger"
               disabled={operation !== null}
-              onClick={() =>
-                startOperation("remove", () => removeSkill(modal.name))
-              }
+              onClick={() => {
+                setModal((current) =>
+                  current?.kind === "remove"
+                    ? { ...current, confirmed: true }
+                    : current,
+                );
+                startOperation("remove", () => removeSkill(modal.name));
+              }}
             >
               {copy.confirm}
             </button>
-          </div>
+          </footer>
         </ModalShell>
       )}
     </main>

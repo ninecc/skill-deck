@@ -28,6 +28,17 @@ describe("UI review scenarios", () => {
     expect(reviewScenarios["content-translation"].translatedText).toContain(
       "请教 Matt",
     );
+    expect(reviewScenarios["lifecycle-loading"].runtime).toBe("pending");
+    expect(reviewScenarios["lifecycle-runtime-failure"].runtime).toMatchObject({
+      ready: false,
+      errorCode: "runtime_not_found",
+    });
+    expect(reviewScenarios["lifecycle-preview-failure"].previewFailure).toBe(
+      "SKILL.md could not be rendered",
+    );
+    expect(
+      reviewScenarios["lifecycle-discovery-search"].searchResults,
+    ).toHaveLength(3);
     expect(canonicalReviewMarker).toContain("CANONICAL_REVIEW_FIXTURE");
   });
 

@@ -18,6 +18,10 @@ const names: IconName[] = [
   "download",
   "close",
   "chevron",
+  "runtime-warning",
+  "empty-inventory",
+  "preview-placeholder",
+  "preview-warning",
 ];
 
 describe("offline icon adapter", () => {

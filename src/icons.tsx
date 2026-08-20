@@ -6,10 +6,14 @@ import FolderOpen from "~icons/lucide/folder-open";
 import Image from "~icons/lucide/image";
 import Languages from "~icons/lucide/languages";
 import PackagePlus from "~icons/lucide/package-plus";
+import PackageOpen from "~icons/lucide/package-open";
+import PackageSearch from "~icons/lucide/package-search";
 import RefreshCw from "~icons/lucide/refresh-cw";
 import Search from "~icons/lucide/search";
 import Settings from "~icons/lucide/sliders-horizontal";
 import Trash from "~icons/lucide/trash-2";
+import TriangleAlert from "~icons/lucide/triangle-alert";
+import FileWarning from "~icons/lucide/file-warning";
 import UpdateAll from "~icons/lucide/arrow-down-to-line";
 import UpdateSkill from "~icons/lucide/download";
 import X from "~icons/lucide/x";
@@ -29,7 +33,11 @@ export type IconName =
   | "trash"
   | "download"
   | "close"
-  | "chevron";
+  | "chevron"
+  | "runtime-warning"
+  | "empty-inventory"
+  | "preview-placeholder"
+  | "preview-warning";
 
 type SvgIcon = ComponentType<SVGProps<SVGSVGElement>>;
 
@@ -49,6 +57,10 @@ const icons = {
   download: UpdateSkill,
   close: X,
   chevron: ChevronDown,
+  "runtime-warning": TriangleAlert,
+  "empty-inventory": PackageOpen,
+  "preview-placeholder": PackageSearch,
+  "preview-warning": FileWarning,
 } satisfies Record<IconName, SvgIcon>;
 
 export function Icon({ name }: { name: IconName }) {

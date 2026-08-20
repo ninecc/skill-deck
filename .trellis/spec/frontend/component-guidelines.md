@@ -18,6 +18,26 @@ a select so keyboard behavior exists without extra code.
   and restore focus to their trigger or a stable fallback when that trigger was
   removed by the confirmed action.
 
+Task dialogs with persistent local tabs use the tabs as their single navigation
+surface. A footer may expose a Pencil-approved shortcut into a secondary tab,
+but the destination tab must not add a reciprocal navigation action: that reads
+like a competing primary command. While a non-cancellable operation is active,
+the footer replaces navigation shortcuts with localized progress/safety copy.
+
+```tsx
+{operation === "install" ? (
+  <small>{copy.commandContinues}</small>
+) : tab === "search" ? (
+  <button onClick={() => setTab("source")}>{copy.installFromSourceAction}</button>
+) : null}
+```
+
+Destructive dialogs initially focus the safe action. After confirmation removes
+the trigger, restore focus to a stable owning heading instead of a detached DOM
+node. Recovery states keep their actions inside the affected pane: Empty exposes
+Find & Install, while Preview failure exposes both Retry and Reveal File through
+the shared Application Command dispatcher.
+
 Render untrusted Markdown through `react-markdown` with raw HTML disabled.
 Override links and images so Preview cannot navigate or trigger remote resource
 loads. Code/plain text stays in a read-only `<pre>`.

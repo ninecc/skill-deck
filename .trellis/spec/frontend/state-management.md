@@ -28,3 +28,17 @@ changes must not remount or reset selection, Preview, translation or scroll.
 Refresh must publish selection-removal feedback before clearing the missing
 selection, and retryable Preview failures must retain the requested path so
 Retry repeats the failed request rather than falling back to another document.
+
+Multi-tab task dialogs keep drafts and results in React state for one opening.
+Switching tabs must not clear either tab. A normal close/reopen starts a fresh
+task at the default tab and clears both drafts/results; an unresolved mutation
+is the exception and retains the active tab, last target, drafts and Retry
+context across close/reopen. Tests must distinguish all three transitions:
+
+- tab switch -> preserve both panels' state;
+- normal reopen -> reset to the default tab and empty drafts/results;
+- unresolved reopen -> restore the exact retry target and context.
+
+Do not infer unresolved state from an error string. Track it explicitly beside
+the typed last-operation target, and let the existing command path perform the
+retry.

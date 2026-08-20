@@ -65,8 +65,8 @@ describe("CLI-backed workspace", () => {
     expect(container.textContent).not.toContain("Future Agent");
     expect(container.textContent).toContain("owner/repo");
     expect(container.textContent).toContain("/tmp/demo");
-    expect(container.textContent).toContain("Choose an installed Skill");
-    expect(container.querySelector(".choose-placeholder .icon")).toBeNull();
+    expect(container.textContent).toContain("Select an installed Skill");
+    expect(container.querySelector(".choose-placeholder .icon")).not.toBeNull();
     expect(
       container.querySelector('[role="option"]')?.getAttribute("aria-selected"),
     ).toBe("false");
@@ -195,6 +195,22 @@ describe("CLI-backed workspace", () => {
     });
     await act(async () => root.render(<App />));
     expect(container.textContent).toContain("No global Skills are installed");
+    expect(container.textContent).toContain(
+      "Install a Skill to inspect its files and keep it updated.",
+    );
+    const emptyRecovery = container.querySelector(
+      ".inventory-empty-state button",
+    ) as HTMLButtonElement;
+    expect(emptyRecovery.textContent).toContain("Find & install");
+    await act(async () => emptyRecovery.click());
+    expect(container.querySelector("#find-install-title")).not.toBeNull();
+    await act(async () =>
+      (
+        container.querySelector(
+          '[role="dialog"] [aria-label="Close"]',
+        ) as HTMLButtonElement
+      ).click(),
+    );
     const emptyFilter = container.querySelector(
       '[aria-label="Filter installed Skills"]',
     ) as HTMLInputElement;
@@ -323,6 +339,9 @@ describe("CLI-backed workspace", () => {
       '[role="dialog"][aria-labelledby="find-install-title"]',
     )!;
     expect(dialog.classList.contains("settings-sheet")).toBe(true);
+    expect(dialog.querySelector(".discovery-footer button")?.textContent).toBe(
+      "Install from source…",
+    );
 
     const search = dialog.querySelector(
       '[aria-label="Search query"]',
@@ -345,6 +364,11 @@ describe("CLI-backed workspace", () => {
     ) as HTMLButtonElement;
     await act(async () => installResult.click());
 
+    const sourceTab = Array.from(dialog.querySelectorAll("button")).find(
+      (button) => button.textContent === "From source",
+    ) as HTMLButtonElement;
+    await act(async () => sourceTab.click());
+    expect(dialog.querySelector(".discovery-footer button")).toBeNull();
     const source = dialog.querySelector(
       ".source-install input",
     ) as HTMLInputElement;
@@ -387,6 +411,255 @@ describe("CLI-backed workspace", () => {
       ).click(),
     );
     expect(container.querySelector("#find-install-title")).toBeNull();
+
+    await act(async () => open.click());
+    const reopened = container.querySelector(
+      '[role="dialog"][aria-labelledby="find-install-title"]',
+    )!;
+    expect(
+      reopened.querySelector('.discovery-tabs [aria-current="page"]')
+        ?.textContent,
+    ).toBe("From source");
+    expect(
+      (reopened.querySelector(".source-install input") as HTMLInputElement)
+        .value,
+    ).toBe("another/repo");
+  });
+
+  it("retains discovery drafts across tabs but resets a normal reopening", async () => {
+    await act(async () => root.render(<App />));
+    const open = Array.from(container.querySelectorAll("button")).find(
+      (button) => button.textContent?.includes("Find & install"),
+    ) as HTMLButtonElement;
+    await act(async () => open.click());
+    const dialog = container.querySelector(
+      '[role="dialog"][aria-labelledby="find-install-title"]',
+    )!;
+    const search = dialog.querySelector(
+      '[aria-label="Search query"]',
+    ) as HTMLInputElement;
+    await act(async () => {
+      Object.getOwnPropertyDescriptor(
+        HTMLInputElement.prototype,
+        "value",
+      )?.set?.call(search, "typescript");
+      search.dispatchEvent(new Event("input", { bubbles: true }));
+      const sourceTab = Array.from(dialog.querySelectorAll("button")).find(
+        (button) => button.textContent === "From source",
+      ) as HTMLButtonElement;
+      sourceTab.click();
+    });
+    const source = dialog.querySelector(
+      ".source-install input",
+    ) as HTMLInputElement;
+    await act(async () => {
+      Object.getOwnPropertyDescriptor(
+        HTMLInputElement.prototype,
+        "value",
+      )?.set?.call(source, "owner/repo");
+      source.dispatchEvent(new Event("input", { bubbles: true }));
+      const searchTab = Array.from(dialog.querySelectorAll("button")).find(
+        (button) => button.textContent === "Search",
+      ) as HTMLButtonElement;
+      searchTab.click();
+    });
+    expect(
+      (dialog.querySelector('[aria-label="Search query"]') as HTMLInputElement)
+        .value,
+    ).toBe("typescript");
+
+    await act(async () =>
+      (
+        dialog.querySelector('[aria-label="Close"]') as HTMLButtonElement
+      ).click(),
+    );
+    await act(async () => open.click());
+    const reopened = container.querySelector(
+      '[role="dialog"][aria-labelledby="find-install-title"]',
+    )!;
+    expect(
+      reopened.querySelector('.discovery-tabs [aria-current="page"]')
+        ?.textContent,
+    ).toBe("Search");
+    expect(
+      (
+        reopened.querySelector(
+          '[aria-label="Search query"]',
+        ) as HTMLInputElement
+      ).value,
+    ).toBe("");
+    await act(async () =>
+      (
+        Array.from(reopened.querySelectorAll("button")).find(
+          (button) => button.textContent === "From source",
+        ) as HTMLButtonElement
+      ).click(),
+    );
+    expect(
+      (reopened.querySelector(".source-install input") as HTMLInputElement)
+        .value,
+    ).toBe("");
+  });
+
+  it("replaces the Search footer shortcut with install progress", async () => {
+    invokeMock.mockImplementation((command: string) => {
+      if (command === "runtime_status")
+        return Promise.resolve({
+          ready: true,
+          errorCode: null,
+          version: "1.5.22",
+          nodeVersion: "22.20.0",
+          message: null,
+          inventory: [demoSkill],
+        });
+      if (command === "search_skills")
+        return Promise.resolve([
+          {
+            name: "found",
+            slug: "owner/repo/found",
+            source: "owner/repo",
+            installs: 42,
+          },
+        ]);
+      if (command === "add_skill") return new Promise(() => undefined);
+      return Promise.reject(new Error(`Unexpected command: ${command}`));
+    });
+    await act(async () => root.render(<App />));
+    const open = Array.from(container.querySelectorAll("button")).find(
+      (button) => button.textContent?.includes("Find & install"),
+    ) as HTMLButtonElement;
+    await act(async () => open.click());
+    const dialog = container.querySelector(
+      '[role="dialog"][aria-labelledby="find-install-title"]',
+    )!;
+    const search = dialog.querySelector(
+      '[aria-label="Search query"]',
+    ) as HTMLInputElement;
+    await act(async () => {
+      Object.getOwnPropertyDescriptor(
+        HTMLInputElement.prototype,
+        "value",
+      )?.set?.call(search, "found");
+      search.dispatchEvent(new Event("input", { bubbles: true }));
+      search
+        .closest("form")
+        ?.dispatchEvent(
+          new Event("submit", { bubbles: true, cancelable: true }),
+        );
+    });
+    const install = Array.from(dialog.querySelectorAll("button")).find(
+      (button) => button.textContent === "Install",
+    ) as HTMLButtonElement;
+    await act(async () => install.click());
+
+    const footer = dialog.querySelector(".discovery-footer")!;
+    expect(footer.textContent).toContain(
+      "Closing this dialog does not cancel the command.",
+    );
+    expect(footer.querySelector("button")).toBeNull();
+  });
+
+  it("describes the destructive target and restores focus after removal", async () => {
+    invokeMock.mockImplementation((command: string) => {
+      if (command === "runtime_status")
+        return Promise.resolve({
+          ready: true,
+          errorCode: null,
+          version: "1.5.22",
+          nodeVersion: "22.20.0",
+          message: null,
+          inventory: [demoSkill],
+        });
+      if (command === "preview_tree") return Promise.resolve([]);
+      if (command === "remove_skill")
+        return Promise.resolve({
+          inventory: [],
+          changedSkills: ["demo"],
+          targetObserved: true,
+          diagnostics: "removed demo",
+        });
+      return Promise.reject(new Error(`Unexpected command: ${command}`));
+    });
+    await act(async () => root.render(<App />));
+    await act(async () =>
+      (container.querySelector('[role="option"]') as HTMLButtonElement).click(),
+    );
+    const trigger = container.querySelector(
+      '[aria-label="Remove"]',
+    ) as HTMLButtonElement;
+    await act(async () => trigger.click());
+    const dialog = container.querySelector(
+      '[role="dialog"][aria-labelledby="remove-title"]',
+    )!;
+    expect(dialog.textContent).toContain("Remove “demo”?");
+    expect(dialog.textContent).toContain("/tmp/demo");
+    expect(document.activeElement?.classList.contains("cancel-button")).toBe(
+      true,
+    );
+    const confirm = Array.from(dialog.querySelectorAll("button")).find(
+      (button) => button.textContent === "Remove Skill",
+    ) as HTMLButtonElement;
+    await act(async () => confirm.click());
+    await act(async () => Promise.resolve());
+    expect(invokeMock).toHaveBeenCalledWith("remove_skill", { name: "demo" });
+    expect(container.querySelector("#remove-title")).toBeNull();
+    expect(document.activeElement?.id).toBe("installed-heading");
+  });
+
+  it("retries and reveals the same path from Preview failure recovery", async () => {
+    invokeMock.mockImplementation((command: string, args?: unknown) => {
+      if (command === "runtime_status")
+        return Promise.resolve({
+          ready: true,
+          errorCode: null,
+          version: "1.5.22",
+          nodeVersion: "22.20.0",
+          message: null,
+          inventory: [demoSkill],
+        });
+      if (command === "preview_tree")
+        return Promise.resolve([
+          {
+            path: "SKILL.md",
+            name: "SKILL.md",
+            level: 1,
+            directory: false,
+            size: 12,
+            viewer: "markdown",
+            unsupportedReason: null,
+          },
+        ]);
+      if (command === "read_preview")
+        return Promise.reject(new Error("SKILL.md could not be rendered"));
+      if (command === "reveal_path") return Promise.resolve(args);
+      return Promise.reject(new Error(`Unexpected command: ${command}`));
+    });
+    await act(async () => root.render(<App />));
+    await act(async () =>
+      (container.querySelector('[role="option"]') as HTMLButtonElement).click(),
+    );
+    const recovery = container.querySelector(".preview-error")!;
+    expect(recovery.textContent).toContain("Preview couldn’t be loaded");
+    expect(recovery.textContent).toContain("Retry the same path or reveal it.");
+    const reveal = Array.from(recovery.querySelectorAll("button")).find(
+      (button) => button.textContent === "Reveal file",
+    ) as HTMLButtonElement;
+    await act(async () => reveal.click());
+    expect(invokeMock).toHaveBeenCalledWith("reveal_path", {
+      skill: "demo",
+      path: "SKILL.md",
+    });
+    const retry = Array.from(recovery.querySelectorAll("button")).find(
+      (button) => button.textContent === "Retry",
+    ) as HTMLButtonElement;
+    await act(async () => retry.click());
+    expect(
+      invokeMock.mock.calls.filter(([command]) => command === "read_preview"),
+    ).toHaveLength(2);
+    expect(invokeMock).toHaveBeenLastCalledWith("read_preview", {
+      skill: "demo",
+      path: "SKILL.md",
+    });
   });
 
   it("persists a translation proxy only after valid Apply", async () => {

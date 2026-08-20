@@ -21,9 +21,13 @@ export default function ModalShell({
 }: Props) {
   const dialog = useRef<HTMLElement>(null);
   const close = useRef(onClose);
+  const returnTarget = useRef(returnFocus);
+  const fallbackTarget = useRef(fallbackFocus);
   useEffect(() => {
     close.current = onClose;
-  }, [onClose]);
+    returnTarget.current = returnFocus;
+    fallbackTarget.current = fallbackFocus;
+  }, [fallbackFocus, onClose, returnFocus]);
 
   useEffect(() => {
     const node = dialog.current;
@@ -61,11 +65,11 @@ export default function ModalShell({
     node.addEventListener("keydown", keydown);
     return () => {
       node.removeEventListener("keydown", keydown);
-      if (returnFocus?.isConnected) returnFocus.focus();
-      else if (fallbackFocus)
-        document.querySelector<HTMLElement>(fallbackFocus)?.focus();
+      if (returnTarget.current?.isConnected) returnTarget.current.focus();
+      else if (fallbackTarget.current)
+        document.querySelector<HTMLElement>(fallbackTarget.current)?.focus();
     };
-  }, [fallbackFocus, initialFocus, returnFocus]);
+  }, [initialFocus]);
 
   return (
     <div className="sheet-backdrop" role="presentation">

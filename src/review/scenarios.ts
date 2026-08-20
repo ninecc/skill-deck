@@ -3,6 +3,7 @@ import type {
   FileEntry,
   InstalledSkill,
   RuntimeStatus,
+  SearchResult,
 } from "../api";
 import type { Theme, UiLocale } from "../preferences";
 
@@ -16,6 +17,13 @@ export const reviewScenarioIds = [
   "content-translation",
   "content-translation-loading",
   "content-translation-error",
+  "lifecycle-loading",
+  "lifecycle-runtime-failure",
+  "lifecycle-empty",
+  "lifecycle-preview-failure",
+  "lifecycle-discovery-search",
+  "lifecycle-discovery-source",
+  "lifecycle-remove",
 ] as const;
 
 export type ReviewScenarioId = (typeof reviewScenarioIds)[number];
@@ -186,8 +194,14 @@ export interface ReviewScenario {
     | "tree"
     | "translation-success"
     | "translation-loading"
-    | "translation-error";
+    | "translation-error"
+    | "preview-error"
+    | "discovery-search"
+    | "discovery-source"
+    | "remove";
   translatedText?: string;
+  previewFailure?: string;
+  searchResults?: SearchResult[];
 }
 
 function ready(inventory: InstalledSkill[]): RuntimeStatus {
@@ -299,6 +313,104 @@ export const reviewScenarios: Record<ReviewScenarioId, ReviewScenario> = {
     theme: "dark",
     locale: "en",
     reviewState: "translation-error",
+  },
+  "lifecycle-loading": {
+    id: "lifecycle-loading",
+    runtime: "pending",
+    tree: [],
+    preview: canonicalPreview,
+    autoSelect: false,
+    theme: "dark",
+    locale: "en",
+    reviewState: "none",
+  },
+  "lifecycle-runtime-failure": {
+    id: "lifecycle-runtime-failure",
+    runtime: {
+      ready: false,
+      errorCode: "runtime_not_found",
+      version: null,
+      nodeVersion: null,
+      message: "Deterministic review runtime failure",
+      inventory: [],
+    },
+    tree: [],
+    preview: canonicalPreview,
+    autoSelect: false,
+    theme: "dark",
+    locale: "en",
+    reviewState: "none",
+  },
+  "lifecycle-empty": {
+    id: "lifecycle-empty",
+    runtime: ready([]),
+    tree: [],
+    preview: canonicalPreview,
+    autoSelect: false,
+    theme: "dark",
+    locale: "en",
+    reviewState: "none",
+  },
+  "lifecycle-preview-failure": {
+    id: "lifecycle-preview-failure",
+    runtime: ready(canonicalInventory),
+    tree: canonicalTree,
+    preview: canonicalPreview,
+    autoSelect: true,
+    theme: "dark",
+    locale: "en",
+    reviewState: "preview-error",
+    previewFailure: "SKILL.md could not be rendered",
+  },
+  "lifecycle-discovery-search": {
+    id: "lifecycle-discovery-search",
+    runtime: ready(canonicalInventory),
+    tree: canonicalTree,
+    preview: canonicalPreview,
+    autoSelect: true,
+    theme: "dark",
+    locale: "en",
+    reviewState: "discovery-search",
+    searchResults: [
+      {
+        name: "typescript-expert",
+        slug: "anthropics/skills/typescript-expert",
+        source: "anthropics/skills",
+        installs: 24810,
+      },
+      {
+        name: "typescript-library-design",
+        slug: "mattpocock/skills/typescript-library-design",
+        source: "mattpocock/skills",
+        installs: 8402,
+      },
+      {
+        name: "typescript-testing",
+        slug: "community/agent-skills/typescript-testing",
+        source: "community/agent-skills",
+        installs: 3190,
+      },
+    ],
+  },
+  "lifecycle-discovery-source": {
+    id: "lifecycle-discovery-source",
+    runtime: ready(canonicalInventory),
+    tree: canonicalTree,
+    preview: canonicalPreview,
+    autoSelect: true,
+    theme: "dark",
+    locale: "en",
+    reviewState: "discovery-source",
+  },
+  "lifecycle-remove": {
+    id: "lifecycle-remove",
+    runtime: ready(canonicalInventory),
+    tree: canonicalTree,
+    preview: canonicalPreview,
+    autoSelect: true,
+    theme: "dark",
+    locale: "en",
+    reviewState: "remove",
   },
 };
 

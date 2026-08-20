@@ -42,4 +42,19 @@ describe("UI review IPC", () => {
       code: "translation_unavailable",
     });
   });
+
+  it("provides deterministic lifecycle search and preview failures", async () => {
+    const discovery = reviewScenarios["lifecycle-discovery-search"];
+    installReviewIpc(discovery);
+    await expect(invoke("search_skills")).resolves.toEqual(
+      discovery.searchResults,
+    );
+    clearMocks();
+
+    const failure = reviewScenarios["lifecycle-preview-failure"];
+    installReviewIpc(failure);
+    await expect(invoke("read_preview")).rejects.toThrow(
+      failure.previewFailure,
+    );
+  });
 });
