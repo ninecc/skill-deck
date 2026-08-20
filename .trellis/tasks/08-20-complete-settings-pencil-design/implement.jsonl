@@ -1,0 +1,4 @@
+{"file": ".trellis/tasks/08-20-complete-settings-pencil-design/prd.md", "reason": "Approved Settings scope, eight required states, acceptance criteria, and design-only boundary"}
+{"file": ".trellis/tasks/08-20-complete-settings-pencil-design/design.md", "reason": "Pencil state architecture, copy/replace construction strategy, content contracts, and validation approach"}
+{"file": ".trellis/spec/frontend/component-guidelines.md", "reason": "Reusable component, accessibility, focus, and interaction guidance relevant to the Settings design"}
+{"file": ".trellis/tasks/archive/2026-08/08-13-skill-deck-pencil-full-flow/design.md", "reason": "Existing canvas hierarchy, Dark reference appendix, token/component model, and Pencil verification contracts"}
