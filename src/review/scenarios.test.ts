@@ -1,0 +1,31 @@
+import { describe, expect, it } from "vitest";
+import {
+  canonicalReviewMarker,
+  isReviewScenarioId,
+  reviewScenarioIds,
+  reviewScenarios,
+} from "./scenarios";
+
+describe("UI review scenarios", () => {
+  it("keeps every declared id backed by a typed scenario", () => {
+    expect(Object.keys(reviewScenarios).sort()).toEqual(
+      [...reviewScenarioIds].sort(),
+    );
+  });
+
+  it("separates canonical, empty, long and Chinese shell pressure states", () => {
+    expect(reviewScenarios["shell-ready"].runtime).not.toBe("pending");
+    expect(reviewScenarios["shell-empty"].runtime).not.toBe("pending");
+    expect(reviewScenarios["shell-loading"].runtime).toBe("pending");
+    expect(reviewScenarios["shell-long"].preview.text?.length).toBeGreaterThan(
+      reviewScenarios["shell-ready"].preview.text?.length ?? 0,
+    );
+    expect(reviewScenarios["shell-zh"].locale).toBe("zh-CN");
+    expect(canonicalReviewMarker).toContain("CANONICAL_REVIEW_FIXTURE");
+  });
+
+  it("rejects unknown URL scenario ids", () => {
+    expect(isReviewScenarioId("shell-ready")).toBe(true);
+    expect(isReviewScenarioId("production")).toBe(false);
+  });
+});

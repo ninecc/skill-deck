@@ -22,6 +22,29 @@ Render untrusted Markdown through `react-markdown` with raw HTML disabled.
 Override links and images so Preview cannot navigate or trigger remote resource
 loads. Code/plain text stays in a read-only `<pre>`.
 
+## Icons and Deterministic UI Review
+
+Source production icons from the approved Iconify collection at build time and
+map them behind the typed application `Icon` adapter. Import explicit glyphs;
+never pass unresolved icon-name strings to an Iconify runtime because that can
+trigger third-party API requests and makes an offline desktop control disappear.
+
+```tsx
+// Correct: Vite compiles one explicit glyph into a static React SVG.
+import SearchIcon from "virtual:icons/lucide/search";
+
+// Wrong: an unresolved name can require the Iconify API at runtime.
+<IconifyIcon icon="lucide:search" />
+```
+
+Maintain deterministic visual scenarios through the development-only review
+entry under `src/review/`. Install typed mocked IPC before mounting the regular
+`App`; scenarios must not invoke the real CLI, network or user filesystem. Keep
+the review HTML outside the production Vite entry graph and prove the production
+bundle contains no review entry, scenario identifiers or canonical fixture
+payloads. Review screenshots are temporary evidence; record the matrix and
+conclusions as text instead of committing screenshot binaries.
+
 ## Inventory and Preview
 
 Inventory row headings identify the CLI-listed Skill. Start with no selection;

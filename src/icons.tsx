@@ -1,3 +1,17 @@
+import type { ComponentType, SVGProps } from "react";
+import ChevronDown from "~icons/lucide/chevron-down";
+import FileText from "~icons/lucide/file-text";
+import Folder from "~icons/lucide/folder";
+import Languages from "~icons/lucide/languages";
+import PackagePlus from "~icons/lucide/package-plus";
+import RefreshCw from "~icons/lucide/refresh-cw";
+import Search from "~icons/lucide/search";
+import Settings from "~icons/lucide/sliders-horizontal";
+import Trash from "~icons/lucide/trash-2";
+import UpdateAll from "~icons/lucide/arrow-down-to-line";
+import UpdateSkill from "~icons/lucide/download";
+import X from "~icons/lucide/x";
+
 export type IconName =
   | "search"
   | "install"
@@ -13,82 +27,32 @@ export type IconName =
   | "close"
   | "chevron";
 
-const paths: Record<IconName, React.ReactNode> = {
-  search: (
-    <>
-      <circle cx="11" cy="11" r="7" />
-      <path d="m20 20-4-4" />
-    </>
-  ),
-  install: (
-    <>
-      <path d="M12 3v11m-4-4 4 4 4-4" />
-      <path d="M5 18v3h14v-3M4 7h4" />
-      <path d="M6 5v4" />
-    </>
-  ),
-  settings: (
-    <>
-      <circle cx="12" cy="12" r="3" />
-      <path d="M12 2v3m0 14v3M2 12h3m14 0h3M5 5l2 2m10 10 2 2M19 5l-2 2M7 17l-2 2" />
-    </>
-  ),
-  refresh: (
-    <>
-      <path d="M20 7v5h-5" />
-      <path d="M19 12a7 7 0 1 0-2 5" />
-    </>
-  ),
-  "update-all": (
-    <>
-      <path d="M5 5h11v11H5zM8 2h11v11" />
-      <path d="M10.5 9.5v4m-2-2 2 2 2-2" />
-    </>
-  ),
-  "update-skill": (
-    <>
-      <path d="M5 3h10l4 4v14H5zM15 3v5h4" />
-      <path d="M12 10v6m-2-2 2 2 2-2" />
-    </>
-  ),
-  folder: <path d="M3 6h7l2 2h9v11H3z" />,
-  file: <path d="M6 2h8l4 4v16H6zM14 2v5h5" />,
-  translate: (
-    <>
-      <path d="M4 5h9M8.5 3v2m-3 3c2 3 4 5 7 6m0-6c-2 3-4 5-7 6" />
-      <path d="m14 21 3-8 3 8m-5-3h4" />
-    </>
-  ),
-  trash: (
-    <>
-      <path d="M4 7h16M9 7V4h6v3m3 0-1 14H7L6 7" />
-    </>
-  ),
-  download: (
-    <>
-      <path d="M12 3v12m-4-4 4 4 4-4" />
-      <path d="M4 20h16" />
-    </>
-  ),
-  close: <path d="m5 5 14 14M19 5 5 19" />,
-  chevron: <path d="m7 10 5 5 5-5" />,
-};
+type SvgIcon = ComponentType<SVGProps<SVGSVGElement>>;
 
-// Phosphor Regular-compatible local SVGs: no runtime icon lookup or network path.
+const icons = {
+  search: Search,
+  install: PackagePlus,
+  settings: Settings,
+  refresh: RefreshCw,
+  "update-all": UpdateAll,
+  "update-skill": UpdateSkill,
+  folder: Folder,
+  file: FileText,
+  translate: Languages,
+  trash: Trash,
+  download: UpdateSkill,
+  close: X,
+  chevron: ChevronDown,
+} satisfies Record<IconName, SvgIcon>;
+
 export function Icon({ name }: { name: IconName }) {
+  const Glyph = icons[name];
   return (
-    <svg
+    <Glyph
       className="icon"
       data-icon={name}
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="1.5"
-      strokeLinecap="round"
-      strokeLinejoin="round"
       aria-hidden="true"
-    >
-      {paths[name]}
-    </svg>
+      focusable="false"
+    />
   );
 }

@@ -1,0 +1,3 @@
+{"file":".trellis/spec/frontend/component-guidelines.md","reason":"Full visual authority, native comparison, accessibility and responsive contracts"}
+{"file":".trellis/spec/frontend/quality-guidelines.md","reason":"Complete frontend quality gate and localization expectations"}
+{"file":".trellis/spec/frontend/state-management.md","reason":"Cross-flow regression review for command and preference ownership"}

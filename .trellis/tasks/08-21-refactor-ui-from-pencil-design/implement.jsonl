@@ -1,0 +1,3 @@
+{"file":".trellis/spec/frontend/index.md","reason":"Frontend layer routing and required pre-development checklist"}
+{"file":".trellis/spec/frontend/component-guidelines.md","reason":"Approved desktop layout, accessibility, modal, file-tree and visual-authority contracts"}
+{"file":".trellis/spec/frontend/state-management.md","reason":"Preserve command and preference state ownership across the UI refactor"}

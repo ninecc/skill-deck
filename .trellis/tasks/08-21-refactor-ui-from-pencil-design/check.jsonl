@@ -1,0 +1,3 @@
+{"file":".trellis/spec/frontend/quality-guidelines.md","reason":"Required frontend quality commands and behavioral test expectations"}
+{"file":".trellis/spec/frontend/component-guidelines.md","reason":"Cross-size visual comparison, accessibility and transient-surface review contracts"}
+{"file":".trellis/spec/frontend/type-safety.md","reason":"Typed component and preference boundary review"}

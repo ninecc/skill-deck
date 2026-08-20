@@ -1,0 +1,4 @@
+{"file":".trellis/spec/frontend/index.md","reason":"Full frontend pre-finish checklist"}
+{"file":".trellis/spec/frontend/component-guidelines.md","reason":"Cross-theme native visual and accessibility review"}
+{"file":".trellis/spec/frontend/quality-guidelines.md","reason":"Required commands and behavior-focused verification"}
+{"file":".trellis/spec/frontend/type-safety.md","reason":"Final typed boundary review"}

@@ -1,0 +1,32 @@
+{
+  "id": "refactor-ui-from-pencil-design",
+  "name": "refactor-ui-from-pencil-design",
+  "title": "Refactor UI from Skill Deck Pencil design",
+  "description": "",
+  "status": "planning",
+  "dev_type": null,
+  "scope": null,
+  "package": null,
+  "priority": "P2",
+  "creator": "ninecc",
+  "assignee": "ninecc",
+  "createdAt": "2026-08-21",
+  "completedAt": null,
+  "branch": "codex-refactor-ui-from-pencil-design",
+  "base_branch": "main",
+  "worktree_path": null,
+  "commit": null,
+  "pr_url": null,
+  "subtasks": [],
+  "children": [
+    "08-21-build-visual-foundation-app-shell",
+    "08-21-refactor-content-navigation-translation",
+    "08-21-refactor-lifecycle-dialogs-states",
+    "08-21-refactor-settings-ui",
+    "08-21-integrate-verify-pencil-ui"
+  ],
+  "parent": null,
+  "relatedFiles": [],
+  "notes": "",
+  "meta": {}
+}

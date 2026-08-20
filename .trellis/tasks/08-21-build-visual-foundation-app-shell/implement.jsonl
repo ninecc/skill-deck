@@ -1,0 +1,3 @@
+{"file":".trellis/spec/frontend/component-guidelines.md","reason":"Approved desktop shell, accessibility, responsive and visual-authority contracts"}
+{"file":".trellis/spec/frontend/directory-structure.md","reason":"Place shared icon and presentation modules consistently"}
+{"file":".trellis/spec/frontend/state-management.md","reason":"Keep App command, inventory and preference ownership unchanged"}

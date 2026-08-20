@@ -17,3 +17,10 @@ npm run typecheck
 npm test -- --run
 npm run build
 ```
+
+For changes to icons or deterministic review scenarios, also inspect the final
+`dist/` output. It must contain only the production HTML/assets and must not
+contain Iconify API/runtime endpoints, `review.html`, review scenario IDs or
+canonical fixture markers/payloads. Exercise owned review scenarios at their
+approved viewport sizes in a real layout engine; jsdom behavior tests do not
+prove geometry or visual fidelity.
