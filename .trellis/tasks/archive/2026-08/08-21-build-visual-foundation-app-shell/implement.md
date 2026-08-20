@@ -27,7 +27,8 @@
       visual approval before starting Child 2.
 - [x] Apply review corrections; no additional correction was requested after
       visual approval.
-- [ ] Create the child's final commit and archive.
+- [x] Create the child's final work commit (`4214383`).
+- [x] Archive the child task through the Trellis finish workflow.
 - [x] Rerun affected frames plus representatives; run the complete child matrix
       when shared tokens/layout/components changed.
 

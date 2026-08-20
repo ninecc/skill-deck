@@ -76,9 +76,10 @@ warnings or errors.
 - The temporary local launch-size edit was restored. `tauri.conf.json` has no
   remaining diff and still declares 1180×800 with a 720×520 minimum.
 
-## Remaining acceptance gates
+## Completion
 
-- Final child commit/archive after review corrections, if any
+Child 1 was visually approved, committed as `4214383`, and handed to the
+Trellis finish workflow for archival.
 
 ## User visual approval
 
