@@ -23,7 +23,8 @@
 - [x] Rerun the post-check Dark dual-size matrix and representative themes.
 - [x] Present screenshots and native-smoke limitation for explicit user visual
       approval.
-- [ ] Commit and archive this child before Child 3 starts.
+- [x] Create final work commit `2a99b0b`.
+- [x] Archive this child through the Trellis finish workflow before Child 3.
 
 ## Rollback points
 

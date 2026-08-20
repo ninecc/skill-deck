@@ -113,3 +113,8 @@ plus icon-only file-tree trigger on the left and four distinct icon-only actions
 on the right. Source, visible path and egress are hidden; full path remains in
 non-visual metadata. The user explicitly confirmed the final translation,
 file-tree-open and long-name screenshots without further correction.
+
+## Completion
+
+The approved Child 2 implementation was committed as `2a99b0b` and handed to
+the Trellis finish workflow for archival.
