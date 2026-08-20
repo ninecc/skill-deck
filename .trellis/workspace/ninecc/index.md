@@ -8,7 +8,7 @@
 
 <!-- @@@auto:current-status -->
 - **Active File**: `journal-1.md`
-- **Total Sessions**: 17
+- **Total Sessions**: 18
 - **Last Active**: 2026-08-21
 <!-- @@@/auto:current-status -->
 
@@ -19,7 +19,7 @@
 <!-- @@@auto:active-documents -->
 | File | Lines | Status |
 |------|-------|--------|
-| `journal-1.md` | ~373 | Active |
+| `journal-1.md` | ~394 | Active |
 <!-- @@@/auto:active-documents -->
 
 ---
@@ -29,6 +29,7 @@
 <!-- @@@auto:session-history -->
 | # | Date | Title | Commits | Branch |
 |---|------|-------|---------|--------|
+| 18 | 2026-08-21 | Refine lifecycle dialogs and recovery states | `9e40ddf` | `codex-refactor-ui-from-pencil-design` |
 | 17 | 2026-08-21 | Refine file navigation and translation | `2a99b0b` | `codex-refactor-ui-from-pencil-design` |
 | 16 | 2026-08-21 | Build Pencil visual foundation | `4214383`, `30d4915` | `codex-refactor-ui-from-pencil-design` |
 | 15 | 2026-08-20 | Complete Settings Pencil design | `168e956` | `main` |

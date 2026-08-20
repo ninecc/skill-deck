@@ -371,3 +371,24 @@ Completed and visually approved Child 2: accessible collapsible file tree, contr
 ### Status
 
 [OK] **Completed**
+
+
+## Session 18: Refine lifecycle dialogs and recovery states
+
+**Date**: 2026-08-21
+**Task**: Refine lifecycle dialogs and recovery states
+**Branch**: `codex-refactor-ui-from-pencil-design`
+
+### Summary
+
+Implemented and visually approved Find & Install tabs, Remove confirmation, lifecycle recovery states, deterministic review scenarios, localized accessibility behavior, and documented dialog lifecycle contracts.
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `9e40ddf` | (see git log) |
+
+### Status
+
+[OK] **Completed**
