@@ -328,3 +328,25 @@ Completed the Settings design family in Pencil: General default context, eight-s
 ### Status
 
 [OK] **Completed**
+
+
+## Session 16: Build Pencil visual foundation
+
+**Date**: 2026-08-21
+**Task**: Build Pencil visual foundation
+**Branch**: `codex-refactor-ui-from-pencil-design`
+
+### Summary
+
+Completed and visually approved Child 1: static Iconify/Lucide integration, five-theme responsive shell, deterministic review fixtures, production leakage checks, full quality gate, and macOS native smoke at wide and compact sizes.
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `4214383` | (see git log) |
+| `30d4915` | (see git log) |
+
+### Status
+
+[OK] **Completed**
