@@ -350,3 +350,24 @@ Completed and visually approved Child 1: static Iconify/Lucide integration, five
 ### Status
 
 [OK] **Completed**
+
+
+## Session 17: Refine file navigation and translation
+
+**Date**: 2026-08-21
+**Task**: Refine file navigation and translation
+**Branch**: `codex-refactor-ui-from-pencil-design`
+
+### Summary
+
+Completed and visually approved Child 2: accessible collapsible file tree, controlled roving focus, wide and compact translation layouts, responsive identity/action hierarchy, deterministic review scenarios, full quality gate, and documented native feature-state limitation.
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `2a99b0b` | (see git log) |
+
+### Status
+
+[OK] **Completed**
