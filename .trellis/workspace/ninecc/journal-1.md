@@ -413,3 +413,24 @@ Implemented and visually approved the five-section Settings dialog, responsive f
 ### Status
 
 [OK] **Completed**
+
+
+## Session 20: Complete Pencil UI integration
+
+**Date**: 2026-08-21
+**Task**: Complete Pencil UI integration
+**Branch**: `codex-refactor-ui-from-pencil-design`
+
+### Summary
+
+Completed the exhaustive theme, size, locale and state matrix; fixed native file-tree reopen focus and Escape propagation regressions; verified macOS Tauri, offline Iconify bundling, production isolation, accessibility, bundle growth and documented Windows/Linux follow-up limits; archived the final child and parent UI refactor tasks.
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `f227906` | (see git log) |
+
+### Status
+
+[OK] **Completed**
