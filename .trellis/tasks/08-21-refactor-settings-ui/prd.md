@@ -34,14 +34,14 @@ theme/localization proofs and desktop keyboard behavior.
 
 ## Acceptance Criteria
 
-- [ ] All eight Dark matrix states and both isolated proof states match Pencil.
-- [ ] Header/navigation/footer remain stable while long Installation content
+- [x] All eight Dark matrix states and both isolated proof states match Pencil.
+- [x] Header/navigation/footer remain stable while long Installation content
       scrolls independently without clipping at 720×520.
-- [ ] Immediate-save and proxy-Apply boundaries are behaviorally tested.
-- [ ] Keyboard navigation, dismissal and focus restoration are tested.
-- [ ] English and Simplified Chinese layouts remain readable; Agent order is
+- [x] Immediate-save and proxy-Apply boundaries are behaviorally tested.
+- [x] Keyboard navigation, dismissal and focus restoration are tested.
+- [x] English and Simplified Chinese layouts remain readable; Agent order is
       unchanged from upstream registration order.
-- [ ] Full frontend quality gate passes.
+- [x] Full frontend quality gate passes.
 
 ## Out of scope
 

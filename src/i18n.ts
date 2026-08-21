@@ -63,6 +63,7 @@ export const catalogs = {
     translation: "Translation",
     unsupported: "This file type cannot be previewed inside Skill Deck.",
     appearance: "Appearance",
+    themeField: "Theme",
     targetLanguage: "Translation target",
     translationProxy: "Translation proxy",
     translationProxyHint:
@@ -201,6 +202,7 @@ export const catalogs = {
     translation: "译文",
     unsupported: "Skill Deck 无法内嵌预览此文件类型。",
     appearance: "外观",
+    themeField: "主题",
     targetLanguage: "翻译目标语言",
     translationProxy: "翻译代理",
     translationProxyHint: "可选；留空时使用环境中的自动网络设置。",

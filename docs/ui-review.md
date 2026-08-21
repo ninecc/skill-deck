@@ -12,8 +12,14 @@ network. Supported shell scenarios are `shell-ready`, `shell-loading`,
 `content-translation-error`. Lifecycle review adds `lifecycle-loading`,
 `lifecycle-runtime-failure`, `lifecycle-empty`, `lifecycle-preview-failure`,
 `lifecycle-discovery-search`, `lifecycle-discovery-source`, and
-`lifecycle-remove`. Theme can be `system`, `light`, `dark`, `sand`, or `plum`;
-locale can be `system`, `en`, or `zh-CN`.
+`lifecycle-remove`. Settings review adds `settings-proof-general`,
+`settings-proof-appearance`, `settings-proof-translation`,
+`settings-proof-translation-invalid`, `settings-proof-installation-auto`,
+`settings-proof-installation-explicit`,
+`settings-proof-installation-no-match`, `settings-proof-about`,
+`settings-proof-appearance-light`, and `settings-proof-installation-zh`. Theme can be
+`system`, `light`, `dark`, `sand`, or `plum`; locale can be `system`, `en`, or
+`zh-CN`.
 
 Use WebView viewport sizes 1180×800 and 720×520. Native window decoration is not
 part of the React comparison area. The normal production build uses only

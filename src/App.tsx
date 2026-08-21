@@ -503,6 +503,10 @@ export default function App() {
   }, [preferences.uiLocale]);
 
   useEffect(() => {
+    document.documentElement.lang = locale;
+  }, [locale]);
+
+  useEffect(() => {
     const request = ++translationRequest.current;
     if (!translationOn || !selected || !file?.translatable) return;
     const key = `${selected}\n${file.path}\n${preferences.targetLanguage}\n${preferences.translationProxy}`;

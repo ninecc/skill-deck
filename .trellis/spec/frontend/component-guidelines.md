@@ -38,6 +38,27 @@ node. Recovery states keep their actions inside the affected pane: Empty exposes
 Find & Install, while Preview failure exposes both Retry and Reveal File through
 the shared Application Command dispatcher.
 
+Settings uses a fixed three-row dialog grid: header, five-section navigation and
+footer remain stationary while only the content viewport scrolls. The approved
+wide dialog is 720×548; at the 720×520 application minimum it is 684×496 with
+18px horizontal and 12px vertical insets. Do not let a long Agent list turn the
+entire dialog into the scroll container.
+
+Section-key navigation calculates from the button receiving the keyboard event,
+not from the currently selected section. This matters after Tab moves focus to
+an inactive button.
+
+```tsx
+const index = sections.indexOf(event.currentTarget.dataset.section as Section);
+const next = sections[(index + delta + sections.length) % sections.length];
+setSection(next);
+sectionRefs[next].current?.focus();
+```
+
+Support Left/Right wrap and Home/End, open on General with its button focused,
+and retain ordinary Tab/Shift+Tab order. Escape, header Close and footer Close
+all dismiss through `ModalShell` and restore the Settings-command focus.
+
 Render untrusted Markdown through `react-markdown` with raw HTML disabled.
 Override links and images so Preview cannot navigate or trigger remote resource
 loads. Code/plain text stays in a read-only `<pre>`.

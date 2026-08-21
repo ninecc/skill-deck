@@ -1,15 +1,15 @@
 # Implementation plan
 
-- [ ] Map current Settings DOM/state to the Pencil matrix and behavior rail.
-- [ ] Refactor stable header/navigation/content/footer dialog composition.
-- [ ] Implement General and Appearance, including five theme tiles.
-- [ ] Implement Translation default and invalid-proxy states with Apply boundary.
-- [ ] Implement Installation automatic/explicit/no-match states and scrolling.
-- [ ] Implement About available/unavailable version presentation.
-- [ ] Preserve upstream Agent ordering and localization copy contracts.
-- [ ] Extend persistence, validation, focus, keyboard and filtering tests.
-- [ ] Compare all ten Settings proof states at approved sizes/themes/locales.
-- [ ] Run full frontend quality gate and Trellis check.
+- [x] Map current Settings DOM/state to the Pencil matrix and behavior rail.
+- [x] Refactor stable header/navigation/content/footer dialog composition.
+- [x] Implement General and Appearance, including five theme tiles.
+- [x] Implement Translation default and invalid-proxy states with Apply boundary.
+- [x] Implement Installation automatic/explicit/no-match states and scrolling.
+- [x] Implement About available/unavailable version presentation.
+- [x] Preserve upstream Agent ordering and localization copy contracts.
+- [x] Extend persistence, validation, focus, keyboard and filtering tests.
+- [x] Compare all ten Settings proof states at approved sizes/themes/locales.
+- [x] Run full frontend quality gate and Trellis check.
 - [ ] Commit and archive this child before Child 5 starts.
 
 ## Rollback points

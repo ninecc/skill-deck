@@ -42,3 +42,21 @@ context across close/reopen. Tests must distinguish all three transitions:
 Do not infer unresolved state from an error string. Track it explicitly beside
 the typed last-operation target, and let the existing command path perform the
 retry.
+
+Settings preference boundaries are explicit. UI locale intent, theme,
+translation target, install method, Agent mode and individual Agent targets call
+the typed parent `onChange` immediately. Translation Proxy is different: keep a
+dialog-local draft and validation error, and update Preferences only after a
+successful Apply. Invalid credentials, paths or non-HTTP(S) values stay inline
+and must never publish a false saved state.
+
+Filtering Agent targets preserves the upstream `agentOptions` order:
+
+```tsx
+const visibleAgents = agentOptions.filter((agent) => matches(agent, query));
+// Do not append `.sort()` here; registration order is product data.
+```
+
+Tests must assert immediate persistence for at least one scalar preference and
+one individual Agent checkbox, plus proxy draft retention across section
+switches, invalid rejection and valid Apply persistence.

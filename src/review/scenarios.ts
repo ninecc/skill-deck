@@ -5,7 +5,7 @@ import type {
   RuntimeStatus,
   SearchResult,
 } from "../api";
-import type { Theme, UiLocale } from "../preferences";
+import type { Preferences, Theme, UiLocale } from "../preferences";
 
 export const reviewScenarioIds = [
   "shell-ready",
@@ -24,6 +24,16 @@ export const reviewScenarioIds = [
   "lifecycle-discovery-search",
   "lifecycle-discovery-source",
   "lifecycle-remove",
+  "settings-proof-general",
+  "settings-proof-appearance",
+  "settings-proof-translation",
+  "settings-proof-translation-invalid",
+  "settings-proof-installation-auto",
+  "settings-proof-installation-explicit",
+  "settings-proof-installation-no-match",
+  "settings-proof-about",
+  "settings-proof-appearance-light",
+  "settings-proof-installation-zh",
 ] as const;
 
 export type ReviewScenarioId = (typeof reviewScenarioIds)[number];
@@ -202,6 +212,16 @@ export interface ReviewScenario {
   translatedText?: string;
   previewFailure?: string;
   searchResults?: SearchResult[];
+  settingsState?:
+    | "general"
+    | "appearance"
+    | "translation"
+    | "translation-invalid"
+    | "installation"
+    | "installation-explicit"
+    | "installation-no-match"
+    | "about";
+  preferences?: Partial<Preferences>;
 }
 
 function ready(inventory: InstalledSkill[]): RuntimeStatus {
@@ -212,6 +232,29 @@ function ready(inventory: InstalledSkill[]): RuntimeStatus {
     nodeVersion: "22.20.0",
     message: null,
     inventory,
+  };
+}
+
+function settingsScenario(
+  id: ReviewScenarioId,
+  settingsState: NonNullable<ReviewScenario["settingsState"]>,
+  options: {
+    theme?: Theme;
+    locale?: UiLocale;
+    preferences?: Partial<Preferences>;
+  } = {},
+): ReviewScenario {
+  return {
+    id,
+    runtime: ready(canonicalInventory),
+    tree: canonicalTree,
+    preview: canonicalPreview,
+    autoSelect: false,
+    theme: options.theme ?? "dark",
+    locale: options.locale ?? "en",
+    reviewState: "none",
+    settingsState,
+    preferences: options.preferences,
   };
 }
 
@@ -412,6 +455,55 @@ export const reviewScenarios: Record<ReviewScenarioId, ReviewScenario> = {
     locale: "en",
     reviewState: "remove",
   },
+  "settings-proof-general": settingsScenario(
+    "settings-proof-general",
+    "general",
+    {
+      preferences: { uiLocale: "system" },
+    },
+  ),
+  "settings-proof-appearance": settingsScenario(
+    "settings-proof-appearance",
+    "appearance",
+    {
+      preferences: { theme: "dark" },
+    },
+  ),
+  "settings-proof-translation": settingsScenario(
+    "settings-proof-translation",
+    "translation",
+    { preferences: { targetLanguage: "en" } },
+  ),
+  "settings-proof-translation-invalid": settingsScenario(
+    "settings-proof-translation-invalid",
+    "translation-invalid",
+    { preferences: { targetLanguage: "en" } },
+  ),
+  "settings-proof-installation-auto": settingsScenario(
+    "settings-proof-installation-auto",
+    "installation",
+  ),
+  "settings-proof-installation-explicit": settingsScenario(
+    "settings-proof-installation-explicit",
+    "installation-explicit",
+    { preferences: { agents: ["codex"] } },
+  ),
+  "settings-proof-installation-no-match": settingsScenario(
+    "settings-proof-installation-no-match",
+    "installation-no-match",
+    { preferences: { agents: ["codex"] } },
+  ),
+  "settings-proof-about": settingsScenario("settings-proof-about", "about"),
+  "settings-proof-appearance-light": settingsScenario(
+    "settings-proof-appearance-light",
+    "appearance",
+    { theme: "light", preferences: { theme: "light" } },
+  ),
+  "settings-proof-installation-zh": settingsScenario(
+    "settings-proof-installation-zh",
+    "installation",
+    { locale: "zh-CN" },
+  ),
 };
 
 export function isReviewScenarioId(

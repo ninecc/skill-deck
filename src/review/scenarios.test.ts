@@ -39,6 +39,25 @@ describe("UI review scenarios", () => {
     expect(
       reviewScenarios["lifecycle-discovery-search"].searchResults,
     ).toHaveLength(3);
+    expect(
+      reviewScenarioIds.filter((id) => id.startsWith("settings-proof-")),
+    ).toHaveLength(10);
+    expect(reviewScenarios["settings-proof-general"].settingsState).toBe(
+      "general",
+    );
+    expect(
+      reviewScenarios["settings-proof-translation-invalid"].settingsState,
+    ).toBe("translation-invalid");
+    expect(
+      reviewScenarios["settings-proof-installation-explicit"].preferences
+        ?.agents,
+    ).toEqual(["codex"]);
+    expect(reviewScenarios["settings-proof-appearance-light"].theme).toBe(
+      "light",
+    );
+    expect(reviewScenarios["settings-proof-installation-zh"].locale).toBe(
+      "zh-CN",
+    );
     expect(canonicalReviewMarker).toContain("CANONICAL_REVIEW_FIXTURE");
   });
 

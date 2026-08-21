@@ -747,6 +747,19 @@ describe("CLI-backed workspace", () => {
 
     const navButtons = () =>
       Array.from(container.querySelectorAll(".settings-nav button"));
+    const localeSelect = container.querySelector(
+      ".general-settings select",
+    ) as HTMLSelectElement;
+    await act(async () => {
+      Object.getOwnPropertyDescriptor(
+        HTMLSelectElement.prototype,
+        "value",
+      )?.set?.call(localeSelect, "en");
+      localeSelect.dispatchEvent(new Event("change", { bubbles: true }));
+    });
+    expect(localStorage.getItem("skill-deck-preferences")).toContain(
+      '"uiLocale":"en"',
+    );
     await act(async () =>
       (
         navButtons().find(
@@ -765,9 +778,39 @@ describe("CLI-backed workspace", () => {
     await act(async () =>
       (
         navButtons().find(
+          (button) => button.textContent === "Translation",
+        ) as HTMLButtonElement
+      ).click(),
+    );
+    const target = container.querySelector(
+      ".translation-settings select",
+    ) as HTMLSelectElement;
+    await act(async () => {
+      Object.getOwnPropertyDescriptor(
+        HTMLSelectElement.prototype,
+        "value",
+      )?.set?.call(target, "en");
+      target.dispatchEvent(new Event("change", { bubbles: true }));
+    });
+    expect(localStorage.getItem("skill-deck-preferences")).toContain(
+      '"targetLanguage":"en"',
+    );
+
+    await act(async () =>
+      (
+        navButtons().find(
           (button) => button.textContent === "Installation",
         ) as HTMLButtonElement
       ).click(),
+    );
+    const copyMethod = Array.from(
+      container.querySelectorAll(".installation-settings .choice"),
+    )
+      .find((label) => label.textContent?.includes("Always copy"))
+      ?.querySelector("input") as HTMLInputElement;
+    await act(async () => copyMethod.click());
+    expect(localStorage.getItem("skill-deck-preferences")).toContain(
+      '"copy":true',
     );
     const explicit = Array.from(container.querySelectorAll("button")).find(
       (button) => button.textContent === "Choose explicit targets",
@@ -776,6 +819,140 @@ describe("CLI-backed workspace", () => {
     expect(localStorage.getItem("skill-deck-preferences")).toContain(
       '"agents":["codex"]',
     );
+    const cline = Array.from(
+      container.querySelectorAll(".agent-options .choice"),
+    )
+      .find((label) => label.textContent?.trim() === "cline")
+      ?.querySelector("input") as HTMLInputElement;
+    await act(async () => cline.click());
+    expect(localStorage.getItem("skill-deck-preferences")).toContain(
+      '"agents":["codex","cline"]',
+    );
+  });
+
+  it("navigates Settings by keyboard and restores focus for every dismissal", async () => {
+    invokeMock.mockImplementation(() => new Promise(() => undefined));
+    await act(async () => root.render(<App />));
+    const trigger = container.querySelector(
+      '[aria-label="Settings"]',
+    ) as HTMLButtonElement;
+    trigger.focus();
+    await act(async () => trigger.click());
+    const nav = () =>
+      Array.from(
+        container.querySelectorAll<HTMLButtonElement>(".settings-nav button"),
+      );
+    expect(document.activeElement).toBe(nav()[0]);
+    await act(async () =>
+      nav()[0].dispatchEvent(
+        new KeyboardEvent("keydown", { key: "ArrowRight", bubbles: true }),
+      ),
+    );
+    expect(document.activeElement).toBe(nav()[1]);
+    expect(container.querySelector("#settings-appearance")).not.toBeNull();
+    nav()[2].focus();
+    await act(async () =>
+      nav()[2].dispatchEvent(
+        new KeyboardEvent("keydown", { key: "ArrowRight", bubbles: true }),
+      ),
+    );
+    expect(document.activeElement).toBe(nav()[3]);
+    expect(container.querySelector("#settings-installation")).not.toBeNull();
+    await act(async () =>
+      nav()[3].dispatchEvent(
+        new KeyboardEvent("keydown", { key: "End", bubbles: true }),
+      ),
+    );
+    expect(document.activeElement).toBe(nav()[4]);
+    expect(container.querySelector("#settings-about")).not.toBeNull();
+    await act(async () =>
+      nav()[4].dispatchEvent(
+        new KeyboardEvent("keydown", { key: "ArrowLeft", bubbles: true }),
+      ),
+    );
+    expect(document.activeElement).toBe(nav()[3]);
+    expect(container.querySelector("#settings-installation")).not.toBeNull();
+    await act(async () =>
+      nav()[3].dispatchEvent(
+        new KeyboardEvent("keydown", { key: "Home", bubbles: true }),
+      ),
+    );
+    expect(document.activeElement).toBe(nav()[0]);
+    expect(container.querySelector("#settings-general")).not.toBeNull();
+    await act(async () =>
+      nav()[0].dispatchEvent(
+        new KeyboardEvent("keydown", { key: "End", bubbles: true }),
+      ),
+    );
+
+    await act(async () =>
+      nav()[4].dispatchEvent(
+        new KeyboardEvent("keydown", { key: "Escape", bubbles: true }),
+      ),
+    );
+    expect(container.querySelector("#settings-title")).toBeNull();
+    expect(document.activeElement).toBe(trigger);
+
+    await act(async () => trigger.click());
+    const footerClose = container.querySelector(
+      ".settings-dialog .dialog-footer button",
+    ) as HTMLButtonElement;
+    await act(async () => footerClose.click());
+    expect(document.activeElement).toBe(trigger);
+
+    await act(async () => trigger.click());
+    const headerClose = container.querySelector(
+      '.settings-dialog .dialog-header [aria-label="Close"]',
+    ) as HTMLButtonElement;
+    await act(async () => headerClose.click());
+    expect(document.activeElement).toBe(trigger);
+  });
+
+  it("preserves upstream Agent order and presents empty filters and CLI version", async () => {
+    invokeMock.mockImplementation(() => new Promise(() => undefined));
+    await act(async () => root.render(<App />));
+    await act(async () =>
+      (
+        container.querySelector('[aria-label="Settings"]') as HTMLButtonElement
+      ).click(),
+    );
+    const navButtons = Array.from(
+      container.querySelectorAll<HTMLButtonElement>(".settings-nav button"),
+    );
+    await act(async () => navButtons[3].click());
+    const explicit = Array.from(container.querySelectorAll("button")).find(
+      (button) => button.textContent === "Choose explicit targets",
+    ) as HTMLButtonElement;
+    await act(async () => explicit.click());
+    expect(
+      Array.from(container.querySelectorAll(".agent-options .choice"))
+        .slice(0, 6)
+        .map((label) => label.textContent?.trim()),
+    ).toEqual([
+      "aider-desk",
+      "amp",
+      "replit",
+      "universal",
+      "antigravity",
+      "antigravity-cli",
+    ]);
+    const filter = container.querySelector(
+      '[aria-label="Filter Agent targets"]',
+    ) as HTMLInputElement;
+    await act(async () => {
+      Object.getOwnPropertyDescriptor(
+        HTMLInputElement.prototype,
+        "value",
+      )?.set?.call(filter, "no-such-agent");
+      filter.dispatchEvent(new Event("input", { bubbles: true }));
+    });
+    expect(container.textContent).toContain("No matching Agent targets.");
+
+    await act(async () => navButtons[4].click());
+    const version = container.querySelector(".version-row");
+    expect(version?.textContent).toContain("Skills CLI version");
+    expect(version?.textContent).toContain("—");
+    expect(version?.classList.contains("version-unavailable")).toBe(true);
   });
 
   it("blocks the workspace when the runtime probe fails", async () => {
@@ -821,6 +998,7 @@ describe("CLI-backed workspace", () => {
     expect(container.textContent).toContain("已安装的 Node.js 版本过低");
     expect(container.textContent).toContain("请升级到 Node.js 22.20");
     expect(container.textContent).not.toContain("raw backend detail");
+    expect(document.documentElement.lang).toBe("zh-CN");
   });
 
   it("keeps Markdown resources inert and lets unsupported files be selected", async () => {

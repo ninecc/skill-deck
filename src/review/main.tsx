@@ -21,19 +21,29 @@ const locales: UiLocale[] = ["system", "en", "zh-CN"];
 const requestedTheme = params.get("theme") as Theme | null;
 const requestedLocale = params.get("locale") as UiLocale | null;
 
+const deterministicLanguages = scenario.locale === "zh-CN" ? ["zh-CN"] : ["en"];
+Object.defineProperty(navigator, "languages", {
+  configurable: true,
+  value: deterministicLanguages,
+});
+Object.defineProperty(navigator, "language", {
+  configurable: true,
+  value: deterministicLanguages[0],
+});
+
 const preferences: Preferences = {
   theme:
     requestedTheme && themes.includes(requestedTheme)
       ? requestedTheme
-      : scenario.theme,
+      : (scenario.preferences?.theme ?? scenario.theme),
   uiLocale:
     requestedLocale && locales.includes(requestedLocale)
       ? requestedLocale
-      : scenario.locale,
-  targetLanguage: "zh-Hans",
-  translationProxy: "",
-  agents: [],
-  copy: false,
+      : (scenario.preferences?.uiLocale ?? scenario.locale),
+  targetLanguage: scenario.preferences?.targetLanguage ?? "zh-Hans",
+  translationProxy: scenario.preferences?.translationProxy ?? "",
+  agents: scenario.preferences?.agents ?? [],
+  copy: scenario.preferences?.copy ?? false,
 };
 
 localStorage.setItem("skill-deck-preferences", JSON.stringify(preferences));
@@ -42,7 +52,72 @@ document.documentElement.dataset.reviewScenario = scenario.id;
 
 function ReviewMount({ value }: { value: ReviewScenario }) {
   useEffect(() => {
-    if (!value.autoSelect || value.runtime === "pending") return;
+    if (value.runtime === "pending") return;
+    const settingsState = value.settingsState;
+    if (settingsState) {
+      let opened = false;
+      let timer = 0;
+      const activateSettings = () => {
+        const dialog = document.querySelector<HTMLElement>(
+          '[role="dialog"][aria-labelledby="settings-title"]',
+        );
+        if (!dialog) {
+          if (opened) return;
+          const trigger = document
+            .querySelector('[data-icon="settings"]')
+            ?.closest<HTMLButtonElement>("button");
+          if (!trigger) return;
+          opened = true;
+          trigger.click();
+          return;
+        }
+        const section = settingsState.startsWith("translation")
+          ? "translation"
+          : settingsState.startsWith("installation")
+            ? "installation"
+            : settingsState;
+        const sectionButton = dialog.querySelector<HTMLButtonElement>(
+          `[aria-controls="settings-${section}"]`,
+        );
+        sectionButton?.focus();
+        sectionButton?.click();
+        if (settingsState === "translation-invalid") {
+          const input = dialog.querySelector<HTMLInputElement>(
+            ".translation-settings input",
+          );
+          if (!input) return;
+          const setter = Object.getOwnPropertyDescriptor(
+            HTMLInputElement.prototype,
+            "value",
+          )?.set;
+          setter?.call(input, "http://user:••••@proxy.example");
+          input.dispatchEvent(new Event("input", { bubbles: true }));
+          dialog.querySelector<HTMLButtonElement>(".proxy-apply")?.click();
+        }
+        if (
+          settingsState === "installation-explicit" ||
+          settingsState === "installation-no-match"
+        ) {
+          const input = dialog.querySelector<HTMLInputElement>(
+            '[aria-label="Filter Agent targets"], [aria-label="筛选 Agent target"]',
+          );
+          if (!input) return;
+          const setter = Object.getOwnPropertyDescriptor(
+            HTMLInputElement.prototype,
+            "value",
+          )?.set;
+          setter?.call(
+            input,
+            settingsState === "installation-explicit" ? "cod" : "no-such-agent",
+          );
+          input.dispatchEvent(new Event("input", { bubbles: true }));
+        }
+        clearInterval(timer);
+      };
+      timer = window.setInterval(activateSettings, 25);
+      return () => clearInterval(timer);
+    }
+    if (!value.autoSelect) return;
     const targetName = value.runtime.inventory[0]?.name;
     if (!targetName) return;
     let selected = false;

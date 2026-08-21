@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useMemo, useState, type KeyboardEvent } from "react";
 import { Icon } from "./icons";
 import ModalShell from "./ModalShell";
 import type { Messages } from "./i18n";
@@ -51,6 +51,31 @@ export default function SettingsDialog({
     ["about", copy.about],
   ];
 
+  function moveSectionFocus(event: KeyboardEvent<HTMLButtonElement>) {
+    const buttons = Array.from(
+      event.currentTarget.parentElement?.querySelectorAll<HTMLButtonElement>(
+        "button",
+      ) ?? [],
+    );
+    const current = buttons.indexOf(event.currentTarget);
+    if (current < 0) return;
+    const last = sections.length - 1;
+    const next =
+      event.key === "ArrowRight"
+        ? (current + 1) % sections.length
+        : event.key === "ArrowLeft"
+          ? (current - 1 + sections.length) % sections.length
+          : event.key === "Home"
+            ? 0
+            : event.key === "End"
+              ? last
+              : null;
+    if (next === null) return;
+    event.preventDefault();
+    setSection(sections[next][0]);
+    buttons[next]?.focus();
+  }
+
   return (
     <ModalShell
       labelledBy="settings-title"
@@ -79,7 +104,9 @@ export default function SettingsDialog({
               key={id}
               type="button"
               aria-current={section === id ? "page" : undefined}
+              aria-controls={`settings-${id}`}
               onClick={() => setSection(id)}
+              onKeyDown={moveSectionFocus}
             >
               {label}
             </button>
@@ -88,7 +115,11 @@ export default function SettingsDialog({
 
         <div className="settings-content">
           {section === "general" && (
-            <section aria-labelledby="general-heading">
+            <section
+              id="settings-general"
+              className="settings-section general-settings"
+              aria-labelledby="general-heading"
+            >
               <div className="section-heading">
                 <h3 id="general-heading">{copy.general}</h3>
                 <small>{copy.settingsSavedImmediately}</small>
@@ -110,13 +141,17 @@ export default function SettingsDialog({
           )}
 
           {section === "appearance" && (
-            <section aria-labelledby="appearance-heading">
+            <section
+              id="settings-appearance"
+              className="settings-section appearance-settings"
+              aria-labelledby="appearance-heading"
+            >
               <div className="section-heading">
                 <h3 id="appearance-heading">{copy.appearance}</h3>
                 <small>{copy.settingsSavedImmediately}</small>
               </div>
               <fieldset>
-                <legend className="sr-only">{copy.appearance}</legend>
+                <legend>{copy.themeField}</legend>
                 <div className="theme-grid">
                   {themes.map((theme) => (
                     <label
@@ -144,7 +179,11 @@ export default function SettingsDialog({
           )}
 
           {section === "translation" && (
-            <section aria-labelledby="translation-heading">
+            <section
+              id="settings-translation"
+              className="settings-section translation-settings"
+              aria-labelledby="translation-heading"
+            >
               <div className="section-heading">
                 <h3 id="translation-heading">{copy.translationSettings}</h3>
                 <small>{copy.proxyApplyNotice}</small>
@@ -200,7 +239,11 @@ export default function SettingsDialog({
           )}
 
           {section === "installation" && (
-            <section aria-labelledby="installation-heading">
+            <section
+              id="settings-installation"
+              className="settings-section installation-settings"
+              aria-labelledby="installation-heading"
+            >
               <div className="section-heading">
                 <h3 id="installation-heading">{copy.installation}</h3>
                 <small>{copy.settingsSavedImmediately}</small>
@@ -296,11 +339,17 @@ export default function SettingsDialog({
           )}
 
           {section === "about" && (
-            <section aria-labelledby="about-heading">
+            <section
+              id="settings-about"
+              className="settings-section about-settings"
+              aria-labelledby="about-heading"
+            >
               <div className="section-heading">
                 <h3 id="about-heading">{copy.about}</h3>
               </div>
-              <p className="version-row">
+              <p
+                className={`version-row ${version ? "" : "version-unavailable"}`}
+              >
                 <span>{copy.cliVersion}</span>
                 <code>{version ?? "—"}</code>
               </p>
