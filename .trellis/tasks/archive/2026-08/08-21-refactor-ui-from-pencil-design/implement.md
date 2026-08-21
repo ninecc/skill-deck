@@ -34,7 +34,7 @@ implementation. Start and archive children in the order below.
 - [x] Confirm all child acceptance criteria and parent acceptance criteria.
 - [x] Run the final full-scope quality gate and visual comparison.
 - [x] Update project specs only for reusable contracts learned during delivery.
-- [ ] Commit integration fixes, archive the children, then archive the parent.
+- [x] Commit integration fixes, archive the children, then archive the parent.
 
 ## Shared validation
 
