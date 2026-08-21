@@ -392,3 +392,24 @@ Implemented and visually approved Find & Install tabs, Remove confirmation, life
 ### Status
 
 [OK] **Completed**
+
+
+## Session 19: Refine Settings experience
+
+**Date**: 2026-08-21
+**Task**: Refine Settings experience
+**Branch**: `codex-refactor-ui-from-pencil-design`
+
+### Summary
+
+Implemented and visually approved the five-section Settings dialog, responsive fixed chrome, immediate and Apply preference boundaries, keyboard navigation, deterministic proof states, and native macOS smoke coverage.
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `54d0dd8` | (see git log) |
+
+### Status
+
+[OK] **Completed**
