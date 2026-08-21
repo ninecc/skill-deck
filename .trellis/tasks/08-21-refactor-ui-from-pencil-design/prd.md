@@ -145,38 +145,38 @@ feature-specific surfaces follow incrementally.
 
 ## Acceptance Criteria
 
-- [ ] Every in-scope Pencil reference composition has a corresponding runnable
+- [x] Every in-scope Pencil reference composition has a corresponding runnable
       application state whose layout and styling match the design at 1180×800.
-- [ ] System, Light, Dark, Sand and Plum all match their token and responsive
+- [x] System, Light, Dark, Sand and Plum all match their token and responsive
       proofs at 1180×800 and 720×520.
-- [ ] System resolves correctly for OS Light and OS Dark at both approved sizes.
-- [ ] All production icons use bundled Iconify Lucide data; the app performs no
+- [x] System resolves correctly for OS Light and OS Dark at both approved sizes.
+- [x] All production icons use bundled Iconify Lucide data; the app performs no
       icon-related runtime request.
-- [ ] File-tree, translation, lifecycle dialogs/states and Settings interactions
+- [x] File-tree, translation, lifecycle dialogs/states and Settings interactions
       retain their existing functional behavior and documented focus/dismissal
       contracts.
-- [ ] File folders support real accessible disclosure and the compact
+- [x] File folders support real accessible disclosure and the compact
       Translation view retains persistent pane state behind local tabs.
-- [ ] English, Simplified Chinese, long target names, empty/error/loading states
+- [x] English, Simplified Chinese, long target names, empty/error/loading states
       and reduced-motion mode do not clip or break the layout.
-- [ ] Existing and added component/integration tests pass, as do formatting,
+- [x] Existing and added component/integration tests pass, as do formatting,
       ESLint, TypeScript, Vitest and the production Vite build.
-- [ ] Record pre/post production bundle size, bundle only used Lucide icons and
+- [x] Record pre/post production bundle size, bundle only used Lucide icons and
       show no material startup regression; investigate significant growth rather
       than inventing an unsupported fixed KB/ms budget.
-- [ ] Visual acceptance uses fixed-size screenshots and Pencil comparison;
+- [x] Visual acceptance uses fixed-size screenshots and Pencil comparison;
       behavior remains automated without adding brittle pixel-baseline tests.
-- [ ] Every Pencil state is reproducible through typed review fixtures, while
+- [x] Every Pencil state is reproducible through typed review fixtures, while
       the production bundle contains no review harness or fixture data.
-- [ ] The complete deterministic matrix is captured through the review entry;
+- [x] The complete deterministic matrix is captured through the review entry;
       representative states per child and final critical flows receive native
       Tauri smoke coverage.
-- [ ] macOS native smoke and three-platform builds/shared-UI checks pass;
+- [x] macOS native smoke and three-platform builds/shared-UI checks pass;
       unavailable Windows/Linux native smoke is recorded for release follow-up.
-- [ ] Each child task is independently reviewed and archived before the next
+- [x] Each child task is independently reviewed and archived before the next
       dependent child starts; the parent finishes with a cross-child visual and
       behavioral integration review.
-- [ ] Each child review covers all owned Dark states at both approved sizes plus
+- [x] Each child review covers all owned Dark states at both approved sizes plus
       representative checks in the other themes; the final child covers the
       exhaustive theme × size × state matrix.
 

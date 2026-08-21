@@ -669,6 +669,11 @@ export default function App() {
       return;
     }
     const selectedPath = file?.path;
+    setTreeFocusPath(
+      selectedPath && tree.some((entry) => entry.path === selectedPath)
+        ? selectedPath
+        : (visibleTree[0]?.path ?? null),
+    );
     if (selectedPath) {
       const ancestors = directoryAncestors(tree, selectedPath);
       if (ancestors.length)
@@ -1598,6 +1603,7 @@ function moveTreeFocus(
 ) {
   if (event.key === "Escape") {
     event.preventDefault();
+    event.stopPropagation();
     close();
     return;
   }

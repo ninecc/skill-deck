@@ -41,14 +41,14 @@ regression hardening needed to accept the complete Pencil UI refactor.
 
 ## Acceptance Criteria
 
-- [ ] Every parent acceptance criterion is backed by test or visual/native-smoke
+- [x] Every parent acceptance criterion is backed by test or visual/native-smoke
       evidence, with any unavailable platform check recorded explicitly.
-- [ ] All Pencil screens have been compared at their approved size/theme/state.
-- [ ] Full frontend quality gate passes from a clean checkout state.
-- [ ] No behavior, localization, accessibility or offline regression remains.
-- [ ] Production bundle size is compared to baseline, only used icons ship and
+- [x] All Pencil screens have been compared at their approved size/theme/state.
+- [x] Full frontend quality gate passes from a clean checkout state.
+- [x] No behavior, localization, accessibility or offline regression remains.
+- [x] Production bundle size is compared to baseline, only used icons ship and
       no material startup regression is observed.
-- [ ] Parent artifacts accurately record final scope and verification.
+- [x] Parent artifacts accurately record final scope and verification.
 
 ## Out of scope
 

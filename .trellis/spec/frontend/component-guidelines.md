@@ -104,7 +104,17 @@ treeitems, Right to expand/enter, and Left to collapse/return to the parent.
 Initialize a refreshed tree expanded to preserve existing file visibility;
 reopening reveals and focuses the selected file without discarding unrelated
 folder toggles. Escape, outside dismissal and file activation restore focus to
-the file-tree trigger.
+the file-tree trigger. A tree-local Escape handler must stop propagation after
+closing the popover so the same key event cannot also reach the window-level
+back-navigation handler and clear the selected Preview.
+
+```tsx
+if (event.key === "Escape") {
+  event.preventDefault();
+  event.stopPropagation();
+  closeTreeAndRestoreTrigger();
+}
+```
 
 ```tsx
 const [treeFocusPath, setTreeFocusPath] = useState<string | null>(null);

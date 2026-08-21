@@ -1104,6 +1104,97 @@ describe("CLI-backed workspace", () => {
     ).not.toBeNull();
   });
 
+  it("resets reopened file-tree focus to the selected Preview file", async () => {
+    invokeMock.mockImplementation(
+      (command: string, args?: { path?: string }) => {
+        if (command === "runtime_status")
+          return Promise.resolve({
+            ready: true,
+            errorCode: null,
+            version: "1.5.22",
+            nodeVersion: "22.20.0",
+            message: null,
+            inventory: [demoSkill],
+          });
+        if (command === "preview_tree")
+          return Promise.resolve([
+            {
+              path: "PHASE-BOUNDARIES.md",
+              name: "PHASE-BOUNDARIES.md",
+              level: 1,
+              directory: false,
+              size: 20,
+              viewer: "markdown",
+              unsupportedReason: null,
+            },
+            {
+              path: "SKILL.md",
+              name: "SKILL.md",
+              level: 1,
+              directory: false,
+              size: 40,
+              viewer: "markdown",
+              unsupportedReason: null,
+            },
+          ]);
+        if (command === "read_preview")
+          return Promise.resolve({
+            path: args?.path,
+            viewer: "markdown",
+            size: 40,
+            text: args?.path,
+            dataUrl: null,
+            translatable: true,
+          });
+        return Promise.reject(new Error(`Unexpected command: ${command}`));
+      },
+    );
+    await act(async () => root.render(<App />));
+    await act(async () =>
+      (container.querySelector('[role="option"]') as HTMLButtonElement).click(),
+    );
+    const trigger = container.querySelector(
+      ".path-button",
+    ) as HTMLButtonElement;
+    await act(async () => trigger.click());
+    await act(async () => new Promise((resolve) => setTimeout(resolve, 20)));
+    const stale = container.querySelector(
+      '[data-path="PHASE-BOUNDARIES.md"]',
+    ) as HTMLButtonElement;
+    await act(async () => stale.focus());
+    expect(stale.tabIndex).toBe(0);
+    await act(async () =>
+      stale.dispatchEvent(
+        new KeyboardEvent("keydown", { key: "Escape", bubbles: true }),
+      ),
+    );
+    expect(document.activeElement).toBe(trigger);
+    expect(container.querySelector(".skill-title-row h1")?.textContent).toBe(
+      "demo",
+    );
+    expect(container.querySelector(".viewer")?.textContent).toContain(
+      "SKILL.md",
+    );
+    expect(container.querySelector(".file-tree")).toBeNull();
+
+    await act(async () => trigger.click());
+    await act(async () => new Promise((resolve) => setTimeout(resolve, 20)));
+    const current = container.querySelector(
+      '[data-path="SKILL.md"]',
+    ) as HTMLButtonElement;
+    const staleReopened = container.querySelector(
+      '[data-path="PHASE-BOUNDARIES.md"]',
+    ) as HTMLButtonElement;
+    const tabStops = Array.from(
+      container.querySelectorAll<HTMLButtonElement>(
+        '.file-tree [role="treeitem"][tabindex="0"]',
+      ),
+    );
+    expect(tabStops).toEqual([current]);
+    expect(staleReopened.tabIndex).toBe(-1);
+    expect(document.activeElement).toBe(current);
+  });
+
   it("supports folder disclosure, tree navigation, and selected ancestor reveal", async () => {
     const entries = [
       {

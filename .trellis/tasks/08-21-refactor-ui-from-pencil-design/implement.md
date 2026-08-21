@@ -5,35 +5,35 @@ implementation. Start and archive children in the order below.
 
 ## Ordered checklist
 
-- [ ] Child 1: establish tokens, offline Iconify/Lucide integration and the
+- [x] Child 1: establish tokens, offline Iconify/Lucide integration and the
       Toolbar/Inventory/Preview/Status application shell.
-- [ ] Establish the dev/review-only typed IPC scenario entry and initial shell
+- [x] Establish the dev/review-only typed IPC scenario entry and initial shell
       states; verify production exclusion.
-- [ ] Seed canonical Pencil data plus long/empty/Chinese stress fixtures and
+- [x] Seed canonical Pencil data plus long/empty/Chinese stress fixtures and
       document how developers launch the review entry.
-- [ ] Present Child 1 screenshots/runtime evidence and obtain user visual
+- [x] Present Child 1 screenshots/runtime evidence and obtain user visual
       approval before Child 2.
-- [ ] Apply requested corrections, then create Child 1's final commit/archive.
-- [ ] Child 2: implement the anchored file tree and translation composition on
+- [x] Apply requested corrections, then create Child 1's final commit/archive.
+- [x] Child 2: implement the anchored file tree and translation composition on
       top of Child 1.
-- [ ] Add deterministic file-tree and translation review scenarios.
-- [ ] Obtain user visual approval before Child 3.
-- [ ] Apply requested corrections, then create Child 2's final commit/archive.
-- [ ] Child 3: refactor Find & Install, Remove and operational states after the
+- [x] Add deterministic file-tree and translation review scenarios.
+- [x] Obtain user visual approval before Child 3.
+- [x] Apply requested corrections, then create Child 2's final commit/archive.
+- [x] Child 3: refactor Find & Install, Remove and operational states after the
       shared shell/transient patterns are stable.
-- [ ] Add deterministic lifecycle and recovery review scenarios.
-- [ ] Obtain user visual approval before Child 4.
-- [ ] Apply requested corrections, then create Child 3's final commit/archive.
-- [ ] Child 4: refactor all Settings sections and edge states using the shared
+- [x] Add deterministic lifecycle and recovery review scenarios.
+- [x] Obtain user visual approval before Child 4.
+- [x] Apply requested corrections, then create Child 3's final commit/archive.
+- [x] Child 4: refactor all Settings sections and edge states using the shared
       modal and visual foundation.
-- [ ] Add deterministic Settings matrix and localization proof scenarios.
-- [ ] Obtain user visual approval before Child 5.
-- [ ] Apply requested corrections, then create Child 4's final commit/archive.
-- [ ] Child 5: run cross-theme, cross-size and native-desktop integration review;
+- [x] Add deterministic Settings matrix and localization proof scenarios.
+- [x] Obtain user visual approval before Child 5.
+- [x] Apply requested corrections, then create Child 4's final commit/archive.
+- [x] Child 5: run cross-theme, cross-size and native-desktop integration review;
       fix only regressions inside the approved parent scope.
-- [ ] Confirm all child acceptance criteria and parent acceptance criteria.
-- [ ] Run the final full-scope quality gate and visual comparison.
-- [ ] Update project specs only for reusable contracts learned during delivery.
+- [x] Confirm all child acceptance criteria and parent acceptance criteria.
+- [x] Run the final full-scope quality gate and visual comparison.
+- [x] Update project specs only for reusable contracts learned during delivery.
 - [ ] Commit integration fixes, archive the children, then archive the parent.
 
 ## Shared validation
