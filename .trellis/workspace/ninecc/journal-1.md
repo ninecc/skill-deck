@@ -434,3 +434,25 @@ Completed the exhaustive theme, size, locale and state matrix; fixed native file
 ### Status
 
 [OK] **Completed**
+
+
+## Session 21: Close MVP readiness gaps
+<!-- trellis-session: v=2 fp=c863c106b729d507 -->
+
+**Date**: 2026-09-09
+**Task**: Close MVP readiness gaps
+**Branch**: `main`
+
+### Summary
+
+Restored catalog search isolation, added safe Update All confirmation, repaired the zero-test CI gate, corrected empty/loading/translation UI states, fixed async modal ownership, and verified frontend, Rust, browser scenarios, and independent reviews.
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `32f0454` | fix: close current MVP readiness gaps |
+
+### Status
+
+[OK] **Completed**
