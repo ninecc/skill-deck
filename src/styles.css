@@ -953,6 +953,9 @@ select:focus-visible {
 .status-ready .status-summary::before {
   color: var(--color-success);
 }
+.status-active .status-summary {
+  color: var(--color-accent);
+}
 .status-success .status-summary {
   color: var(--color-success);
 }
@@ -1567,7 +1570,17 @@ select:focus-visible {
     display: none;
   }
   .egress {
-    display: none;
+    display: block;
+    max-width: 112px;
+    line-height: 12px;
+  }
+  .inventory-empty-state {
+    padding-inline: 12px;
+  }
+  .inventory-empty-state button {
+    max-width: 100%;
+    padding-inline: 6px;
+    font-size: 11px;
   }
   .skill-header {
     height: 54px;

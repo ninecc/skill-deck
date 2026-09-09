@@ -2,6 +2,7 @@ use serde::{Deserialize, Serialize};
 use std::{
     collections::{BTreeMap, BTreeSet},
     ffi::OsStr,
+    io::Read,
     path::{Path, PathBuf},
     process::{Command, Output},
     sync::{Mutex, MutexGuard},
@@ -106,6 +107,14 @@ pub struct CommandResult {
     pub diagnostics: String,
 }
 
+#[derive(Debug, Clone, Copy)]
+enum CatalogRequestError {
+    Unavailable,
+    IncompatibleResponse,
+}
+
+type CatalogRequest = fn(&str) -> Result<Vec<u8>, CatalogRequestError>;
+
 enum ExpectedMutation<'a> {
     Add(Option<&'a str>),
     Remove(&'a str),
@@ -126,11 +135,22 @@ struct Toolchain {
     npx: PathBuf,
 }
 
-#[derive(Default)]
 pub struct CliManager {
     session: Mutex<Option<Session>>,
     inventory: Mutex<BTreeMap<String, PathBuf>>,
     mutation: Mutex<()>,
+    catalog_request: CatalogRequest,
+}
+
+impl Default for CliManager {
+    fn default() -> Self {
+        Self {
+            session: Mutex::new(None),
+            inventory: Mutex::new(BTreeMap::new()),
+            mutation: Mutex::new(()),
+            catalog_request: request_catalog,
+        }
+    }
 }
 
 impl CliManager {
@@ -161,26 +181,10 @@ impl CliManager {
     }
 
     pub fn search(&self, query: &str) -> Result<Vec<SearchResult>, CommandError> {
-        self.ensure_session()?;
         validate("search query", query)?;
-        let response: SearchResponse = reqwest::blocking::Client::new()
-            .get(SEARCH_URL)
-            .query(&[("q", query), ("limit", "20")])
-            .send()
-            .and_then(reqwest::blocking::Response::error_for_status)
-            .map_err(|error| {
-                CommandError::new(
-                    "search_unavailable",
-                    format!("Search is unavailable: {error}"),
-                )
-            })?
-            .json()
-            .map_err(|error| {
-                CommandError::new(
-                    "incompatible_response",
-                    format!("Search returned an incompatible response: {error}"),
-                )
-            })?;
+        let body = (self.catalog_request)(query).map_err(catalog_command_error)?;
+        let response: SearchResponse = serde_json::from_slice(&body)
+            .map_err(|_| catalog_command_error(CatalogRequestError::IncompatibleResponse))?;
         let mut items: Vec<_> = response
             .skills
             .into_iter()
@@ -356,6 +360,32 @@ impl CliManager {
             target_observed,
             diagnostics: diagnostic(&output),
         })
+    }
+}
+
+fn request_catalog(query: &str) -> Result<Vec<u8>, CatalogRequestError> {
+    let mut response = reqwest::blocking::Client::new()
+        .get(SEARCH_URL)
+        .query(&[("q", query), ("limit", "20")])
+        .send()
+        .and_then(reqwest::blocking::Response::error_for_status)
+        .map_err(|_| CatalogRequestError::Unavailable)?;
+    let mut body = Vec::new();
+    response
+        .read_to_end(&mut body)
+        .map_err(|_| CatalogRequestError::IncompatibleResponse)?;
+    Ok(body)
+}
+
+fn catalog_command_error(error: CatalogRequestError) -> CommandError {
+    match error {
+        CatalogRequestError::Unavailable => {
+            CommandError::new("search_unavailable", "Search is unavailable.")
+        }
+        CatalogRequestError::IncompatibleResponse => CommandError::new(
+            "incompatible_response",
+            "Search returned an incompatible response.",
+        ),
     }
 }
 
@@ -540,6 +570,107 @@ mod tests {
     fn executable(path: &std::path::Path) {
         fs::write(path, "#!/bin/sh\n").unwrap();
         fs::set_permissions(path, fs::Permissions::from_mode(0o755)).unwrap();
+    }
+
+    fn ranked_catalog_response(query: &str) -> Result<Vec<u8>, CatalogRequestError> {
+        assert_eq!(query, "formatter");
+        Ok(
+            br#"{"skills":[{"id":"small","name":"Small","source":"one/small","installs":12},{"id":"popular","name":"Popular","source":"one/popular","installs":900},{"id":"medium","name":"Medium","source":"one/medium","installs":80}]}"#
+                .to_vec(),
+        )
+    }
+
+    fn unavailable_catalog(_: &str) -> Result<Vec<u8>, CatalogRequestError> {
+        Err(CatalogRequestError::Unavailable)
+    }
+
+    fn malformed_catalog_response(_: &str) -> Result<Vec<u8>, CatalogRequestError> {
+        Ok(br#"{"skills":[{"id":"missing-required-fields"}]}"#.to_vec())
+    }
+
+    fn unexpected_catalog_request(_: &str) -> Result<Vec<u8>, CatalogRequestError> {
+        panic!("catalog request must not run")
+    }
+
+    #[test]
+    fn catalog_search_ignores_unavailable_runtime_state_and_ranks_mapped_results() {
+        let manager = CliManager {
+            catalog_request: ranked_catalog_response,
+            ..CliManager::default()
+        };
+        let poison = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            let _session = match manager.session.lock() {
+                Ok(guard) => guard,
+                Err(_) => panic!("session lock started poisoned"),
+            };
+            let _inventory = match manager.inventory.lock() {
+                Ok(guard) => guard,
+                Err(_) => panic!("inventory lock started poisoned"),
+            };
+            panic!("poison runtime state");
+        }));
+        assert!(poison.is_err());
+        assert!(manager.session.is_poisoned());
+        assert!(manager.inventory.is_poisoned());
+
+        let results = manager.search("formatter").unwrap();
+
+        assert_eq!(
+            results
+                .iter()
+                .map(|item| (
+                    item.name.as_str(),
+                    item.slug.as_str(),
+                    item.source.as_str(),
+                    item.installs,
+                ))
+                .collect::<Vec<_>>(),
+            [
+                ("Popular", "popular", "one/popular", 900),
+                ("Medium", "medium", "one/medium", 80),
+                ("Small", "small", "one/small", 12),
+            ]
+        );
+    }
+
+    #[test]
+    fn catalog_search_validates_before_requesting() {
+        let manager = CliManager {
+            catalog_request: unexpected_catalog_request,
+            ..CliManager::default()
+        };
+
+        assert_eq!(manager.search(" \n").unwrap_err().code, "invalid_input");
+    }
+
+    #[test]
+    fn catalog_search_returns_stable_sanitized_request_and_shape_errors() {
+        let unavailable = CliManager {
+            catalog_request: unavailable_catalog,
+            ..CliManager::default()
+        }
+        .search("formatter")
+        .unwrap_err();
+        assert_eq!(unavailable.code, "search_unavailable");
+        assert_eq!(unavailable.message, "Search is unavailable.");
+        assert!(unavailable.operation.is_none());
+        assert!(unavailable.exit_code.is_none());
+        assert!(unavailable.diagnostics.is_none());
+
+        let incompatible = CliManager {
+            catalog_request: malformed_catalog_response,
+            ..CliManager::default()
+        }
+        .search("formatter")
+        .unwrap_err();
+        assert_eq!(incompatible.code, "incompatible_response");
+        assert_eq!(
+            incompatible.message,
+            "Search returned an incompatible response."
+        );
+        assert!(incompatible.operation.is_none());
+        assert!(incompatible.exit_code.is_none());
+        assert!(incompatible.diagnostics.is_none());
     }
 
     #[test]

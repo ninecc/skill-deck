@@ -76,7 +76,24 @@ jobs:
         with:
           workspaces: src-tauri -> target
       - run: npm ci
-      - run: cargo test --manifest-path src-tauri/Cargo.toml --all-features projection_contract_smoke
+      - name: Verify upstream CLI contract
+        shell: bash
+        run: |
+          set -euo pipefail
+          contract_test='cli::tests::mutation_argv_matches_the_upstream_noninteractive_contract'
+          listed_tests="$(
+            cargo test --manifest-path src-tauri/Cargo.toml --all-features --lib "$contract_test" -- --exact --list
+          )"
+          match_count="$(
+            printf '%s\n' "$listed_tests" |
+              tr -d '\r' |
+              grep -Fxc "$contract_test: test" || true
+          )"
+          if [ "$match_count" -ne 1 ]; then
+            printf 'Expected exactly one Cargo test named %s; found %s.\n' "$contract_test" "$match_count" >&2
+            exit 1
+          fi
+          cargo test --manifest-path src-tauri/Cargo.toml --all-features --lib "$contract_test" -- --exact
       - run: npm run tauri build -- ${{ matrix.args }}
       - uses: actions/upload-artifact@v4
         with:

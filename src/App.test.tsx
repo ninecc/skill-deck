@@ -145,6 +145,11 @@ describe("CLI-backed workspace", () => {
     expect(container.textContent).toContain("Loading Skills");
     expect(container.textContent).not.toContain("No global Skills");
     expect(container.querySelector(".spinner")).not.toBeNull();
+    const startupStatus = container.querySelector(".status-bar") as HTMLElement;
+    expect(startupStatus.classList.contains("status-active")).toBe(true);
+    expect(startupStatus.classList.contains("status-ready")).toBe(false);
+    expect(startupStatus.getAttribute("aria-busy")).toBe("true");
+    expect(startupStatus.textContent).toContain("Starting");
     expect(
       (container.querySelector(".bar-actions .button") as HTMLButtonElement)
         .disabled,
@@ -162,25 +167,25 @@ describe("CLI-backed workspace", () => {
     ).toBe("update-all");
   });
 
-  it("distinguishes empty Inventory from filter misses on visible fields", async () => {
+  it("keeps empty Inventory guidance coherent and recoverable through filtering", async () => {
     await act(async () => root.render(<App />));
     const filter = container.querySelector(
       '[aria-label="Filter installed Skills"]',
     ) as HTMLInputElement;
-    const setFilter = (value: string) => {
+    const setFilter = (input: HTMLInputElement, value: string) => {
       Object.getOwnPropertyDescriptor(
         HTMLInputElement.prototype,
         "value",
-      )?.set?.call(filter, value);
-      filter.dispatchEvent(new Event("input", { bubbles: true }));
+      )?.set?.call(input, value);
+      input.dispatchEvent(new Event("input", { bubbles: true }));
     };
 
-    await act(async () => setFilter("Future Agent"));
+    await act(async () => setFilter(filter, "Future Agent"));
     expect(container.textContent).toContain("No matching Skills");
     expect(container.textContent).not.toContain("No global Skills");
-    await act(async () => setFilter("owner/repo"));
+    await act(async () => setFilter(filter, "owner/repo"));
     expect(container.querySelector('[role="option"]')).not.toBeNull();
-    await act(async () => setFilter("/tmp/demo"));
+    await act(async () => setFilter(filter, "/tmp/demo"));
     expect(container.querySelector('[role="option"]')).not.toBeNull();
 
     await act(async () => root.unmount());
@@ -194,15 +199,30 @@ describe("CLI-backed workspace", () => {
       inventory: [],
     });
     await act(async () => root.render(<App />));
-    expect(container.textContent).toContain("No global Skills are installed");
-    expect(container.textContent).toContain(
-      "Install a Skill to inspect its files and keep it updated.",
-    );
-    const emptyRecovery = container.querySelector(
-      ".inventory-empty-state button",
+
+    const inventoryRecovery = container.querySelector(
+      ".inventory-empty-state",
+    ) as HTMLElement;
+    const previewRecovery = container.querySelector(
+      ".detail-pane > .choose-placeholder",
+    ) as HTMLElement;
+    for (const recovery of [inventoryRecovery, previewRecovery]) {
+      expect(recovery.textContent).toContain("No global Skills are installed");
+      expect(recovery.textContent).toContain(
+        "Install a Skill to inspect its files and keep it updated.",
+      );
+      expect(
+        Array.from(recovery.querySelectorAll("button")).some((button) =>
+          button.textContent?.includes("Find & install"),
+        ),
+      ).toBe(true);
+      expect(recovery.textContent).not.toContain("Select an installed Skill");
+    }
+
+    const previewAction = previewRecovery.querySelector(
+      "button",
     ) as HTMLButtonElement;
-    expect(emptyRecovery.textContent).toContain("Find & install");
-    await act(async () => emptyRecovery.click());
+    await act(async () => previewAction.click());
     expect(container.querySelector("#find-install-title")).not.toBeNull();
     await act(async () =>
       (
@@ -211,18 +231,15 @@ describe("CLI-backed workspace", () => {
         ) as HTMLButtonElement
       ).click(),
     );
+
     const emptyFilter = container.querySelector(
       '[aria-label="Filter installed Skills"]',
     ) as HTMLInputElement;
-    await act(async () => {
-      Object.getOwnPropertyDescriptor(
-        HTMLInputElement.prototype,
-        "value",
-      )?.set?.call(emptyFilter, "missing");
-      emptyFilter.dispatchEvent(new Event("input", { bubbles: true }));
-    });
+    await act(async () => setFilter(emptyFilter, "missing"));
+    expect(emptyFilter.value).toBe("missing");
+    expect(container.querySelector(".inventory-empty-state")).not.toBeNull();
+    expect(container.textContent).toContain("No global Skills are installed");
     expect(container.textContent).not.toContain("No matching Skills");
-    expect(container.textContent).not.toContain("No global Skills");
   });
 
   it("publishes Retry Inventory without a separate list command", async () => {
@@ -501,7 +518,11 @@ describe("CLI-backed workspace", () => {
     ).toBe("");
   });
 
-  it("replaces the Search footer shortcut with install progress", async () => {
+  it("keeps install progress and completion scoped to Discovery", async () => {
+    let finishAdd: (value: unknown) => void = () => undefined;
+    const addPromise = new Promise<unknown>((resolve) => {
+      finishAdd = resolve;
+    });
     invokeMock.mockImplementation((command: string) => {
       if (command === "runtime_status")
         return Promise.resolve({
@@ -521,7 +542,8 @@ describe("CLI-backed workspace", () => {
             installs: 42,
           },
         ]);
-      if (command === "add_skill") return new Promise(() => undefined);
+      if (command === "add_skill") return addPromise;
+      if (command === "preview_tree") return Promise.resolve([]);
       return Promise.reject(new Error(`Unexpected command: ${command}`));
     });
     await act(async () => root.render(<App />));
@@ -557,6 +579,176 @@ describe("CLI-backed workspace", () => {
       "Closing this dialog does not cancel the command.",
     );
     expect(footer.querySelector("button")).toBeNull();
+    await act(async () =>
+      dialog.dispatchEvent(
+        new KeyboardEvent("keydown", { key: "Escape", bubbles: true }),
+      ),
+    );
+    await act(async () =>
+      (
+        container.querySelector('[aria-label="Settings"]') as HTMLButtonElement
+      ).click(),
+    );
+    expect(container.querySelector("#settings-title")).not.toBeNull();
+    await act(async () =>
+      finishAdd({
+        inventory: [
+          demoSkill,
+          { ...demoSkill, name: "found", source: "owner/repo" },
+        ],
+        changedSkills: ["found"],
+        targetObserved: true,
+        diagnostics: "installed found",
+      }),
+    );
+    expect(container.querySelector("#settings-title")).not.toBeNull();
+  });
+
+  it("gates Update all behind safe Cancel and Escape boundaries", async () => {
+    await act(async () => root.render(<App />));
+    const trigger = container.querySelector(
+      '[aria-label="Update all"]',
+    ) as HTMLButtonElement;
+
+    trigger.focus();
+    await act(async () => trigger.click());
+    let dialog = container.querySelector(
+      '[role="dialog"][aria-labelledby="update-all-title"]',
+    ) as HTMLElement;
+    expect(dialog.textContent).toContain(
+      "Run the Skills CLI update command for every global Skill?",
+    );
+    expect(
+      invokeMock.mock.calls.filter(([command]) => command === "update_skill"),
+    ).toHaveLength(0);
+    expect(document.activeElement?.classList.contains("cancel-button")).toBe(
+      true,
+    );
+
+    await act(async () =>
+      (dialog.querySelector(".cancel-button") as HTMLButtonElement).click(),
+    );
+    expect(container.querySelector("#update-all-title")).toBeNull();
+    expect(
+      invokeMock.mock.calls.filter(([command]) => command === "update_skill"),
+    ).toHaveLength(0);
+    expect(document.activeElement).toBe(trigger);
+
+    await act(async () => trigger.click());
+    dialog = container.querySelector(
+      '[role="dialog"][aria-labelledby="update-all-title"]',
+    ) as HTMLElement;
+    await act(async () =>
+      dialog.dispatchEvent(
+        new KeyboardEvent("keydown", { key: "Escape", bubbles: true }),
+      ),
+    );
+    expect(container.querySelector("#update-all-title")).toBeNull();
+    expect(
+      invokeMock.mock.calls.filter(([command]) => command === "update_skill"),
+    ).toHaveLength(0);
+    expect(document.activeElement).toBe(trigger);
+  });
+
+  it("confirms Update all exactly once through the localized operation path", async () => {
+    localStorage.setItem("skill-deck-locale", "zh-CN");
+    invokeMock.mockImplementation((command: string) => {
+      if (command === "runtime_status")
+        return Promise.resolve({
+          ready: true,
+          errorCode: null,
+          version: "1.5.22",
+          nodeVersion: "22.20.0",
+          message: null,
+          inventory: [demoSkill],
+        });
+      if (command === "update_skill")
+        return Promise.resolve({
+          inventory: [demoSkill],
+          changedSkills: [],
+          targetObserved: true,
+          diagnostics: "updated all",
+        });
+      return Promise.reject(new Error(`Unexpected command: ${command}`));
+    });
+    await act(async () => root.render(<App />));
+    const trigger = container.querySelector(
+      '[aria-label="全部更新"]',
+    ) as HTMLButtonElement;
+    await act(async () => trigger.click());
+    const dialog = container.querySelector(
+      '[role="dialog"][aria-labelledby="update-all-title"]',
+    ) as HTMLElement;
+    expect(dialog.textContent).toContain(
+      "对全部全局 Skill 执行 Skills CLI 更新命令？",
+    );
+    expect(dialog.textContent).toContain("取消");
+    const confirm = Array.from(dialog.querySelectorAll("button")).find(
+      (button) => button.textContent === "全部更新",
+    ) as HTMLButtonElement;
+
+    await act(async () => confirm.click());
+    expect(
+      invokeMock.mock.calls.filter(([command]) => command === "update_skill"),
+    ).toEqual([["update_skill", { name: null }]]);
+    expect(container.querySelector("#update-all-title")).toBeNull();
+    expect(container.textContent).toContain("命令已完成，Inventory 已刷新。");
+  });
+
+  it("does not close a newer dialog when Update all completes", async () => {
+    let finishUpdate: (value: unknown) => void = () => undefined;
+    const updatePromise = new Promise<unknown>((resolve) => {
+      finishUpdate = resolve;
+    });
+    invokeMock.mockImplementation((command: string) => {
+      if (command === "runtime_status")
+        return Promise.resolve({
+          ready: true,
+          errorCode: null,
+          version: "1.5.22",
+          nodeVersion: "22.20.0",
+          message: null,
+          inventory: [demoSkill],
+        });
+      if (command === "update_skill") return updatePromise;
+      return Promise.reject(new Error(`Unexpected command: ${command}`));
+    });
+    await act(async () => root.render(<App />));
+    await act(async () =>
+      (
+        container.querySelector(
+          '[aria-label="Update all"]',
+        ) as HTMLButtonElement
+      ).click(),
+    );
+    const updateDialog = container.querySelector(
+      '[role="dialog"][aria-labelledby="update-all-title"]',
+    ) as HTMLElement;
+    const confirm = Array.from(updateDialog.querySelectorAll("button")).find(
+      (button) => button.textContent === "Update all",
+    ) as HTMLButtonElement;
+    await act(async () => confirm.click());
+    await act(async () =>
+      updateDialog.dispatchEvent(
+        new KeyboardEvent("keydown", { key: "Escape", bubbles: true }),
+      ),
+    );
+    await act(async () =>
+      (
+        container.querySelector('[aria-label="Settings"]') as HTMLButtonElement
+      ).click(),
+    );
+    expect(container.querySelector("#settings-title")).not.toBeNull();
+
+    await act(async () =>
+      finishUpdate({
+        inventory: [demoSkill],
+        changedSkills: [],
+        targetObserved: true,
+        diagnostics: "updated all",
+      }),
+    );
+    expect(container.querySelector("#settings-title")).not.toBeNull();
   });
 
   it("describes the destructive target and restores focus after removal", async () => {
@@ -1474,7 +1666,17 @@ describe("CLI-backed workspace", () => {
       ).click(),
     );
     expect(container.textContent).toContain("secret source");
-    expect(container.textContent).toContain("Translating…");
+    expect(container.querySelector(".egress")?.textContent).toContain(
+      "Eligible content is sent to Google",
+    );
+    const translationStatus = container.querySelector(
+      ".status-bar",
+    ) as HTMLElement;
+    expect(translationStatus.classList.contains("status-active")).toBe(true);
+    expect(translationStatus.classList.contains("status-ready")).toBe(false);
+    expect(translationStatus.getAttribute("aria-busy")).toBe("true");
+    expect(translationStatus.textContent).toContain("Translating…");
+
     await act(async () =>
       rejectTranslation?.({
         code: "translation_timeout",
@@ -1483,12 +1685,6 @@ describe("CLI-backed workspace", () => {
     );
     expect(container.textContent).toContain("Translation timed out");
     expect(container.textContent).not.toContain("translate.googleapis.com");
-    const retry = Array.from(container.querySelectorAll("button")).find(
-      (button) => button.textContent === "Retry",
-    ) as HTMLButtonElement;
-    await act(async () => retry.click());
-    expect(container.textContent).toContain("translated");
-    expect(translations).toBe(2);
 
     const translationTab = container.querySelector(
       "#translation-tab",
@@ -1496,9 +1692,29 @@ describe("CLI-backed workspace", () => {
     const originalTab = container.querySelector(
       "#original-tab",
     ) as HTMLButtonElement;
-    await act(async () => translationTab.click());
+    const translationPanel = container.querySelector(
+      "#translation-panel",
+    ) as HTMLElement;
     expect(translationTab.getAttribute("aria-selected")).toBe("true");
+    expect(originalTab.getAttribute("aria-selected")).toBe("false");
+    expect(translationPanel.textContent).toContain("Translation timed out");
+    const retry = Array.from(translationPanel.querySelectorAll("button")).find(
+      (button) => button.textContent === "Retry",
+    ) as HTMLButtonElement;
+    expect(retry).not.toBeNull();
+
+    await act(async () => originalTab.click());
+    expect(originalTab.getAttribute("aria-selected")).toBe("true");
+    expect(container.querySelector("#original-panel")?.textContent).toContain(
+      "secret source",
+    );
+    await act(async () => translationTab.click());
+    await act(async () => retry.click());
     expect(container.textContent).toContain("translated");
+    expect(translations).toBe(2);
+    expect(translationStatus.classList.contains("status-active")).toBe(false);
+    expect(translationStatus.classList.contains("status-ready")).toBe(true);
+
     await act(async () => originalTab.click());
     expect(originalTab.getAttribute("aria-selected")).toBe("true");
     expect(container.textContent).toContain("translated");

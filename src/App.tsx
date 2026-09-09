@@ -64,6 +64,7 @@ type DiscoveryTab = "search" | "source";
 type Modal =
   | { kind: "settings"; trigger: HTMLElement | null }
   | { kind: "discovery"; trigger: HTMLElement | null }
+  | { kind: "update-all"; trigger: HTMLElement | null }
   | {
       kind: "remove";
       name: string;
@@ -306,7 +307,9 @@ export default function App() {
           if (matches.length === 1) {
             setUnresolvedDiscovery(false);
             setDiscoveryError(null);
-            setModal(null);
+            setModal((current) =>
+              current?.kind === "discovery" ? null : current,
+            );
             chooseSkill(matches[0].name);
             setFeedback({
               severity: "success",
@@ -345,7 +348,14 @@ export default function App() {
             setTree([]);
             setFile(null);
           }
-          if (kind === "remove") setModal(null);
+          if (kind === "remove")
+            setModal((current) =>
+              current?.kind === "remove" ? null : current,
+            );
+          else if (kind === "update" && modal?.kind === "update-all")
+            setModal((current) =>
+              current?.kind === "update-all" ? null : current,
+            );
         }
       })
       .catch((value: unknown) => {
@@ -393,7 +403,10 @@ export default function App() {
         startOperation("refresh", refreshInventory);
         return;
       case "update-all":
-        startOperation("update", () => updateSkill(null));
+        openModal({
+          kind: "update-all",
+          trigger: document.activeElement as HTMLElement | null,
+        });
         return;
       case "translate-skill":
         if (translationOn) hideTranslation();
@@ -435,7 +448,7 @@ export default function App() {
       inventoryCount: inventory.length,
       selected: selected !== null,
       mutationActive: operation !== null,
-      modal: modal?.kind ?? null,
+      modal: modal?.kind === "update-all" ? "remove" : (modal?.kind ?? null),
       document: documentState,
     }),
     [
@@ -535,6 +548,7 @@ export default function App() {
                   ? copy.translationUnavailable
                   : commandErrorMessage(value),
         });
+        setMobilePane("translation");
       });
   }, [
     translationOn,
@@ -643,6 +657,7 @@ export default function App() {
         skill.path.toLowerCase().includes(query),
     );
   }, [filter, inventory]);
+  const inventoryEmpty = runtime?.ready === true && inventory.length === 0;
   const selectedSkill = selected
     ? (inventory.find((skill) => skill.name === selected) ?? null)
     : null;
@@ -652,6 +667,11 @@ export default function App() {
       : null;
   const currentTranslation =
     translationState?.key === translationKey ? translationState : null;
+  const translationPending =
+    translationOn &&
+    file?.translatable === true &&
+    (!currentTranslation ||
+      (currentTranslation.text === undefined && !currentTranslation.error));
   const visibleTree = useMemo(
     () => visibleTreeEntries(tree, expandedDirectories),
     [expandedDirectories, tree],
@@ -710,6 +730,16 @@ export default function App() {
         return [copy.runtimeUnavailable, copy.runtimeUnavailableHint] as const;
     }
   })();
+  const statusBusy =
+    (!runtime && !runtimeError) || operation !== null || translationPending;
+  const statusTone =
+    !runtime && !runtimeError
+      ? "active"
+      : runtimeFailure
+        ? "error"
+        : operation || translationPending
+          ? "active"
+          : (feedback?.severity ?? "ready");
 
   const reasonCopy = (reason: UnavailableReason | null) => {
     switch (reason) {
@@ -902,7 +932,7 @@ export default function App() {
               </button>
             ))}
           </div>
-          {runtime?.ready && inventory.length === 0 && !filter.trim() && (
+          {inventoryEmpty && (
             <div className="inventory-empty-state operational-state">
               <span className="state-symbol" aria-hidden="true">
                 <Icon name="empty-inventory" />
@@ -924,10 +954,26 @@ export default function App() {
           {!selected ? (
             <div className="choose-placeholder operational-state">
               <span className="state-symbol" aria-hidden="true">
-                <Icon name="preview-placeholder" />
+                <Icon
+                  name={
+                    inventoryEmpty ? "empty-inventory" : "preview-placeholder"
+                  }
+                />
               </span>
-              <strong>{copy.emptyPreviewTitle}</strong>
-              <p>{copy.emptyPreviewMessage}</p>
+              <strong>
+                {inventoryEmpty ? copy.noSkills : copy.emptyPreviewTitle}
+              </strong>
+              <p>
+                {inventoryEmpty
+                  ? copy.emptyInventoryMessage
+                  : copy.emptyPreviewMessage}
+              </p>
+              {inventoryEmpty && (
+                <button type="button" onClick={() => dispatch("find-install")}>
+                  <Icon name="install" />
+                  {copy.findInstall}
+                </button>
+              )}
             </div>
           ) : (
             <>
@@ -1239,7 +1285,8 @@ export default function App() {
       </div>
 
       <footer
-        className={`status-bar status-${runtimeFailure ? "error" : (feedback?.severity ?? "ready")}`}
+        className={`status-bar status-${statusTone}`}
+        aria-busy={statusBusy || undefined}
       >
         <div className="status-summary">
           {!runtime && !runtimeError ? (
@@ -1254,6 +1301,11 @@ export default function App() {
             <span className="status-announcement" aria-live="polite">
               <span className="spinner" aria-hidden="true" />
               {copy.busy}
+            </span>
+          ) : translationPending ? (
+            <span className="status-announcement" aria-live="polite">
+              <span className="spinner" aria-hidden="true" />
+              {copy.translating}
             </span>
           ) : feedback ? (
             <>
@@ -1492,6 +1544,39 @@ export default function App() {
                 {copy.installFromSourceAction}
               </button>
             ) : null}
+          </footer>
+        </ModalShell>
+      )}
+      {modal?.kind === "update-all" && (
+        <ModalShell
+          labelledBy="update-all-title"
+          onClose={closeModal}
+          returnFocus={modal.trigger}
+          initialFocus=".cancel-button"
+          className="confirmation-modal"
+        >
+          <header className="remove-dialog-header">
+            <h2 id="update-all-title">{copy.updateAll}</h2>
+          </header>
+          <div className="remove-dialog-content">
+            <p>{copy.confirmUpdateAll}</p>
+            {operation === "update" && <small>{copy.commandContinues}</small>}
+          </div>
+          <footer className="modal-actions">
+            <button
+              type="button"
+              className="cancel-button"
+              onClick={closeModal}
+            >
+              {copy.cancel}
+            </button>
+            <button
+              type="button"
+              disabled={operation !== null}
+              onClick={() => startOperation("update", () => updateSkill(null))}
+            >
+              {copy.updateAll}
+            </button>
           </footer>
         </ModalShell>
       )}

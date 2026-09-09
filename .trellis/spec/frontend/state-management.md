@@ -60,3 +60,19 @@ const visibleAgents = agentOptions.filter((agent) => matches(agent, query));
 Tests must assert immediate persistence for at least one scalar preference and
 one individual Agent checkbox, plus proxy draft retention across section
 switches, invalid rejection and valid Apply persistence.
+
+## Async operation ownership
+
+An operation completion may close only the dialog that launched that operation.
+Users can dismiss a progress dialog and open another modal while the promise is
+still pending; a stale closure must not clear the newer modal or its local draft.
+Use a functional state update that checks the current modal kind:
+
+```tsx
+setModal((current) => (current?.kind === launchedKind ? null : current));
+```
+
+Never call unconditional `setModal(null)` from an asynchronous completion path
+when another dialog can open during that operation. Tests must cover launching
+an operation, dismissing its dialog, opening Settings, resolving the operation,
+and retaining Settings and its draft state.

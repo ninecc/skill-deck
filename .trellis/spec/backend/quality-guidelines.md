@@ -75,3 +75,48 @@ the equivalent Windows and Linux packaging checks.
 // Correct: every desktop format is explicit.
 { "bundle": { "icon": ["icons/32x32.png", "icons/icon.icns", "icons/icon.ico"] } }
 ```
+
+## Scenario: Named Cargo test gates
+
+### 1. Scope / Trigger
+
+Any CI or packaging step that selects a named Cargo test is a release gate.
+
+### 2. Signatures
+
+The gate uses the fully qualified libtest name:
+`cargo test ... --lib <module>::tests::<name> -- --exact`.
+
+### 3. Contracts
+
+List the exact selector first, require exactly one `<name>: test` entry, then
+execute that same selector. The selected test must cover a current accepted
+contract and remain hermetic.
+
+### 4. Validation & Error Matrix
+
+- One listed test that passes -> gate passes.
+- Zero listed tests -> gate fails before execution.
+- More than one listed test -> gate fails as ambiguous.
+- Selected test failure -> gate fails with Cargo's exit status.
+
+### 5. Good / Base / Bad Cases
+
+- Good: a current upstream-CLI argv contract is listed once and passes.
+- Base: renaming the test breaks the count check visibly.
+- Bad: a stale filter runs zero tests and Cargo exits successfully.
+
+### 6. Tests Required
+
+Run the exact workflow command locally, observe one listed test, and execute it.
+Also verify a deliberately nonexistent selector is rejected by the count guard.
+
+### 7. Wrong vs Correct
+
+```bash
+# Wrong: zero matches still exit successfully.
+cargo test stale_test_name
+
+# Correct: count one exact listed test before executing it.
+cargo test --lib module::tests::current_contract -- --exact --list
+```
