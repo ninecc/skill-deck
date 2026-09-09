@@ -1,0 +1,31 @@
+{
+  "id": "close-mvp-readiness-gaps",
+  "name": "close-mvp-readiness-gaps",
+  "title": "Close current MVP readiness gaps",
+  "description": "Fix confirmed safety, contract, CI, and UI-state defects from the functionality completion audit.",
+  "status": "completed",
+  "dev_type": null,
+  "scope": null,
+  "package": null,
+  "priority": "P2",
+  "creator": "ninecc",
+  "assignee": "ninecc",
+  "createdAt": "2026-09-09",
+  "completedAt": "2026-09-09",
+  "branch": "main",
+  "base_branch": "main",
+  "worktree_path": null,
+  "commit": null,
+  "pr_url": null,
+  "subtasks": [],
+  "children": [
+    "09-09-restore-catalog-search-isolation",
+    "09-09-require-update-all-confirmation",
+    "09-09-repair-package-ci-gate",
+    "09-09-correct-ui-state-semantics"
+  ],
+  "parent": null,
+  "relatedFiles": [],
+  "notes": "",
+  "meta": {}
+}

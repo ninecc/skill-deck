@@ -1,0 +1,3 @@
+{"file":".trellis/spec/backend/quality-guidelines.md","reason":"Review backend and CI quality gates across the integrated tranche."}
+{"file":".trellis/spec/frontend/quality-guidelines.md","reason":"Review frontend behavior and deterministic UI evidence."}
+{"file":".trellis/tasks/09-03-audit-functionality-completion/evidence.md","reason":"Verify the integrated work closes the accepted findings without overstating release readiness."}

@@ -1,0 +1,4 @@
+{"file":".trellis/spec/frontend/component-guidelines.md","reason":"Defines empty/recovery states, responsive behavior, disclosure, and accessibility."}
+{"file":".trellis/spec/frontend/state-management.md","reason":"Constrains state derivation and transient translation state."}
+{"file":".trellis/spec/frontend/quality-guidelines.md","reason":"Defines deterministic review and frontend quality gates."}
+{"file":".trellis/tasks/09-03-audit-functionality-completion/evidence.md","reason":"Provides confirmed UI-state findings and screenshot index."}

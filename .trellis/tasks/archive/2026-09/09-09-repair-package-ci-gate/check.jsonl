@@ -1,0 +1,2 @@
+{"file":".trellis/spec/backend/quality-guidelines.md","reason":"Review that the gate executes meaningful current tests."}
+{"file":".trellis/tasks/09-03-audit-functionality-completion/evidence.md","reason":"Verify the stale projection gate is closed without restoring superseded behavior."}

@@ -1,0 +1,4 @@
+{"file":".trellis/spec/backend/command-contracts.md","reason":"Defines the mandatory Update All confirmation boundary."}
+{"file":".trellis/spec/frontend/component-guidelines.md","reason":"Defines modal focus, cancellation, and command behavior."}
+{"file":".trellis/spec/frontend/state-management.md","reason":"Constrains transient UI state and command flow."}
+{"file":".trellis/tasks/09-03-audit-functionality-completion/evidence.md","reason":"Provides the confirmed missing-confirmation evidence."}

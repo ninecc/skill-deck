@@ -1,0 +1,4 @@
+{"file":".trellis/spec/backend/command-contracts.md","reason":"Defines search isolation, CLI lifecycle, and stable error contracts."}
+{"file":".trellis/spec/backend/error-handling.md","reason":"Defines user-visible backend error requirements."}
+{"file":".trellis/spec/backend/quality-guidelines.md","reason":"Defines hermetic trust-boundary and test expectations."}
+{"file":".trellis/tasks/09-03-audit-functionality-completion/evidence.md","reason":"Provides the confirmed defect and evidence baseline."}

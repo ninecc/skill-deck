@@ -1,0 +1,3 @@
+{"file":".trellis/spec/backend/quality-guidelines.md","reason":"Defines required Rust gates and meaningful test evidence."}
+{"file":".trellis/spec/backend/command-contracts.md","reason":"Identifies current lifecycle/runtime contracts eligible for the gate."}
+{"file":".trellis/tasks/09-03-audit-functionality-completion/evidence.md","reason":"Provides the zero-test reproduction and release impact."}

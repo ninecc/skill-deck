@@ -1,0 +1,3 @@
+{"file":".trellis/spec/frontend/component-guidelines.md","reason":"Review responsive operability, disclosure, focus, and state clarity."}
+{"file":".trellis/spec/frontend/quality-guidelines.md","reason":"Review tests and actual rendered surfaces."}
+{"file":".trellis/tasks/09-03-audit-functionality-completion/evidence.md","reason":"Compare fixes against the audited defect baseline."}
