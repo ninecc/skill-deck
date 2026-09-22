@@ -1,0 +1,29 @@
+{
+  "id": "macos-first-release-validation",
+  "name": "macos-first-release-validation",
+  "title": "Adopt macOS-first release validation",
+  "description": "Make macOS the formally supported release target, keep Windows/Linux as build previews, and rewrite release smoke guidance for the upstream Skills CLI lifecycle.",
+  "status": "planning",
+  "dev_type": null,
+  "scope": null,
+  "package": null,
+  "priority": "P2",
+  "creator": "ninecc",
+  "assignee": "ninecc",
+  "createdAt": "2026-09-22",
+  "completedAt": null,
+  "branch": null,
+  "base_branch": "main",
+  "worktree_path": null,
+  "commit": null,
+  "pr_url": null,
+  "subtasks": [],
+  "children": [],
+  "parent": null,
+  "relatedFiles": [],
+  "notes": "",
+  "meta": {
+    "deferred": "true",
+    "deferred_reason": "Prioritize functional development; resume release policy, CI artifact labeling, checklist rewrite, and macOS smoke later."
+  }
+}
