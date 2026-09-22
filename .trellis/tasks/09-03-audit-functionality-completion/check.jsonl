@@ -1,0 +1,5 @@
+{"file":".trellis/spec/frontend/quality-guidelines.md","reason":"Provides the frontend verification commands and evidence expectations for independent review."}
+{"file":".trellis/spec/backend/quality-guidelines.md","reason":"Provides the Rust verification commands and trust-boundary checks for independent review."}
+{"file":".trellis/spec/backend/command-contracts.md","reason":"Provides the behavioral contracts against which capability findings must be checked."}
+{"file":".trellis/tasks/09-03-audit-functionality-completion/research/authority-baseline.md","reason":"Provides the user-approved scope and source-authority baseline for checking the audit report."}
+{"file":".trellis/tasks/09-03-audit-functionality-completion/research/release-evidence.md","reason":"Provides independently researched native-smoke and CI-gate facts that the final release-readiness claims must preserve."}

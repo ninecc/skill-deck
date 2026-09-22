@@ -1,0 +1,7 @@
+{"file":".trellis/spec/frontend/index.md","reason":"Defines the frontend scope and required quality gate for the current React application."}
+{"file":".trellis/spec/frontend/quality-guidelines.md","reason":"Defines frontend completion evidence, required commands, and production-dist inspection rules."}
+{"file":".trellis/spec/backend/index.md","reason":"Defines the Rust backend scope and routes to the command and quality contracts."}
+{"file":".trellis/spec/backend/quality-guidelines.md","reason":"Defines backend trust boundaries and the required Rust verification commands."}
+{"file":".trellis/spec/backend/command-contracts.md","reason":"Defines current runtime, lifecycle, preview, translation, and cross-layer behavior that the audit must trace."}
+{"file":".trellis/tasks/09-03-audit-functionality-completion/research/authority-baseline.md","reason":"Fixes the agreed authority order and prevents historical roadmap requirements from contaminating the current-MVP score."}
+{"file":".trellis/tasks/09-03-audit-functionality-completion/research/release-evidence.md","reason":"Records which native release evidence is current, stale, or absent and identifies the zero-test CI projection gate."}
